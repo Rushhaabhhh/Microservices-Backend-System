@@ -18,7 +18,7 @@ services:
       context: ./services/users
       dockerfile: Dockerfile
     environment:
-      API_SECRET: secret
+      API_SECRET: myapisecret
       MONGO_URI: mongodb://username:password@users-db:27017/users-service?authSource=admin
       USERS_SERVICE_PORT: 8000
     ports:
@@ -35,8 +35,8 @@ services:
       context: ./gateway
       dockerfile: Dockerfile
     environment:
-      API_SECRET: myapisecret
-      USERS_SERVICE_URL: http://localhost:8000
+      API_SECRET: secret
+      USERS_SERVICE_URL: http://users-service:8000
     ports:
       - 4000:4000
     depends_on:

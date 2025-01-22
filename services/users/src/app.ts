@@ -13,8 +13,8 @@ app.use(morgan('common'));
 
 // Zod schemas for validation
 const userRegistrationSchema = z.object({
-  username: z.string().min(1, 'Username is required').trim(),
-  password: z.string().min(6, 'Password must be at least 6 characters long'),
+  name: z.string().min(1, 'name is required').trim(),
+  email: z.string().min(6, 'email must be at least 6 characters long'),
 });
 
 const userIdParamSchema = z.object({
@@ -59,18 +59,37 @@ app.post(
   validateRequestBody(userRegistrationSchema),
   async (req, res): Promise<void> => {
     try {
-      const { username, password } = req.body;
+      const { name, email, preferences } = req.body;
 
-      const existingUser = await User.findOne({ username });
+      // Check if a user with the given name already exists
+      const existingUser = await User.findOne({ name });
       if (existingUser) {
-        res.status(400).json({ error: 'Username already exists' });
+        res.status(400).json({ error: 'Name already exists' });
         return;
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const newUser = await User.create({ username, password: hashedPassword });
+      // Check if a user with the given email already exists
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) {
+        res.status(400).json({ error: 'Email already exists' });
+        return;
+      }
+      
+      // Create a new user with default preferences if not provided
+      const newUser = await User.create({
+        name,
+        email,
+        preferences: {
+          promotions: preferences?.promotions ?? true,
+          orderUpdates: preferences?.orderUpdates ?? true,
+          recommendations: preferences?.recommendations ?? true,
+        },
+      });
 
+      // Generate a JWT token
       const token = signJWT(newUser.id);
+
+      // Return the created user and access token
       res.status(201).json({ result: { user: newUser, access_token: token } });
     } catch (err) {
       if (err instanceof Error) {
