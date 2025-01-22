@@ -1,0 +1,48 @@
+version: "3.8"
+services:
+
+  users-db:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: username
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: users-service
+    ports:
+      - 27017:27017
+    networks:
+      - backend
+
+
+  users-service:
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile
+    environment:
+      API_SECRET: secret
+      MONGO_URI: mongodb://username:password@users-db:27017/users-service?authSource=admin
+      USERS_SERVICE_PORT: 8000
+    ports:
+      - 8001:8000
+    depends_on:
+      - users-db
+    networks:
+      - backend
+
+
+
+  api-gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    environment:
+      API_SECRET: myapisecret
+      USERS_SERVICE_URL: http://localhost:8000
+    ports:
+      - 4000:4000
+    depends_on:
+      - users-service
+    networks:
+      - backend
+
+networks:
+  backend:
