@@ -2,7 +2,7 @@ import morgan from "morgan";
 import express from "express";
 import z from "zod";
 import { Order } from "./models";
-// import { producer } from "./kafka";
+import { producer } from "./kafka";
 
 const app = express();
 
@@ -68,12 +68,12 @@ app.post(
       const newOrder = await Order.create({ userId, products });
 
       // Publish an order-placed event to Kafka
-    //   await producer.send({
-    //     topic: "order-events",
-    //     messages: [
-    //       { value: JSON.stringify({ type: "order-placed", payload: newOrder }) },
-    //     ],
-    //   });
+      await producer.send({
+        topic: "order-events",
+        messages: [
+          { value: JSON.stringify({ type: "order-placed", payload: newOrder }) },
+        ],
+      });
 
       // Return the created order
       res.status(201).json({ result: newOrder });

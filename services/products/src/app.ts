@@ -3,7 +3,7 @@ import morgan from 'morgan';
 import z from 'zod';
 
 import { Product } from './models';
-// import { producer } from './kafka'; 
+import { producer } from './kafka'; 
 
 const app = express();
 
@@ -63,17 +63,17 @@ app.post(
       const product = await Product.create(req.body);
 
       // Send Kafka event for product creation
-      // await producer.send({
-      //   topic: 'inventory-events',
-      //   messages: [
-      //     {
-      //       value: JSON.stringify({
-      //         type: 'product-created',
-      //         payload: product,
-      //       }),
-      //     },
-      //   ],
-      // });
+      await producer.send({
+        topic: 'inventory-events',
+        messages: [
+          {
+            value: JSON.stringify({
+              type: 'product-created',
+              payload: product,
+            }),
+          },
+        ],
+      });
 
       res.status(201).json({ result: product });
     } catch (err) {
