@@ -1,23 +1,25 @@
-import morgan from 'morgan';
 import express from 'express';
+import morgan from 'morgan';
 import z from 'zod';
 
-import { User } from './models';
-import { signJWT } from './middleware';
+import { Product } from './models';
+// import { producer } from './kafka'; 
 
 const app = express();
 
 app.use(express.json());
 app.use(morgan('common'));
 
-// Zod schemas for validation
-const userRegistrationSchema = z.object({
-  name: z.string().min(1, 'name is required').trim(),
-  email: z.string().min(6, 'email must be at least 6 characters long'),
+// Zod schema for product validation
+const productSchema = z.object({
+  name: z.string().min(1, 'Product name is required').trim(),
+  price: z.number().positive('Price must be greater than zero'),
+  quantity: z.number().int().nonnegative('Quantity must be a non-negative integer'),
 });
 
-const userIdParamSchema = z.object({
-  id: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid user ID'),
+// Zod schema for product ID validation
+const productIdParamSchema = z.object({
+  id: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid product ID'),
 });
 
 // Middleware for validating request bodies
@@ -52,44 +54,28 @@ const validateRequestParams =
     }
   };
 
-// User Registration Endpoint
+// Create Product Endpoint
 app.post(
   '/',
-  validateRequestBody(userRegistrationSchema),
+  validateRequestBody(productSchema),
   async (req, res): Promise<void> => {
     try {
-      const { name, email, preferences } = req.body;
+      const product = await Product.create(req.body);
 
-      // Check if a user with the given name already exists
-      const existingUser = await User.findOne({ name });
-      if (existingUser) {
-        res.status(400).json({ error: 'Name already exists' });
-        return;
-      }
+      // Send Kafka event for product creation
+      // await producer.send({
+      //   topic: 'inventory-events',
+      //   messages: [
+      //     {
+      //       value: JSON.stringify({
+      //         type: 'product-created',
+      //         payload: product,
+      //       }),
+      //     },
+      //   ],
+      // });
 
-      // Check if a user with the given email already exists
-      const existingEmail = await User.findOne({ email });
-      if (existingEmail) {
-        res.status(400).json({ error: 'Email already exists' });
-        return;
-      }
-      
-      // Create a new user with default preferences if not provided
-      const newUser = await User.create({
-        name,
-        email,
-        preferences: {
-          promotions: preferences?.promotions ?? true,
-          orderUpdates: preferences?.orderUpdates ?? true,
-          recommendations: preferences?.recommendations ?? true,
-        },
-      });
-
-      // Generate a JWT token
-      const token = signJWT(newUser.id);
-
-      // Return the created user and access token
-      res.status(201).json({ result: { user: newUser, access_token: token } });
+      res.status(201).json({ result: product });
     } catch (err) {
       if (err instanceof Error) {
         res.status(500).json({ error: err.message });
@@ -100,21 +86,21 @@ app.post(
   }
 );
 
-// Get User by ID
+// Get Product by ID
 app.get(
   '/:id',
-  validateRequestParams(userIdParamSchema),
+  validateRequestParams(productIdParamSchema),
   async (req, res): Promise<void> => {
     try {
       const { id } = req.params;
-      const user = await User.findById(id);
+      const product = await Product.findById(id);
 
-      if (!user) {
-        res.status(404).json({ error: 'User not found' });
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
         return;
       }
 
-      res.json({ result: user });
+      res.json({ result: product });
     } catch (err) {
       if (err instanceof Error) {
         res.status(500).json({ error: err.message });
@@ -125,11 +111,11 @@ app.get(
   }
 );
 
-// Get All Users
+// Get All Products
 app.get('/', async (req, res): Promise<void> => {
   try {
-    const users = await User.find({});
-    res.json({ result: users });
+    const products = await Product.find({});
+    res.json({ result: products });
   } catch (err) {
     if (err instanceof Error) {
       res.status(500).json({ error: err.message });

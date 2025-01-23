@@ -6,7 +6,7 @@ import app from './app';
 config();
 
 const main = async () => {
-    const mongoUrl = process.env["MONGO_URL"];
+    const mongoUrl = process.env.MONGO_URL;
     if (!mongoUrl) {
         throw new Error("MONGO_URL is not defined in the environment variables");
     }
