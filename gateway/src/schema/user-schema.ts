@@ -2,7 +2,7 @@ import { buildSchema } from "graphql";
 
 const userTypeDefs = buildSchema(`
     type User {
-        id: ID!
+        _id: ID!
         email: String!
         name: String!
         preferences: UserPreferences!
@@ -19,7 +19,13 @@ const userTypeDefs = buildSchema(`
     input CreateUserInput {
         email: String!
         name: String!
+        password: String!
         preferences: UserPreferencesInput
+    }
+
+    type CreateUserResult {
+        access_token: String!
+        user: User!
     }
 
     input UserPreferencesInput {
@@ -40,7 +46,7 @@ const userTypeDefs = buildSchema(`
     }
 
     type Mutation {
-        createUser(input: CreateUserInput!): User!
+        createUser(input: CreateUserInput!): CreateUserResult!
         updateUserPreferences(id: ID!, preferences: UpdateUserPreferencesInput!): User!
     }
 `);

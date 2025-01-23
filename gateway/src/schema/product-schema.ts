@@ -5,13 +5,13 @@ const productTypeDefs = buildSchema(`
   type Product {
     _id: ID!
     name: String!
-    price: Int!
+    price: Float!
     quantity: Int!
   } 
 
   input CreateProductInput {
     name: String!
-    price: Int!
+    price: Float!
     quantity: Int!
   }
 

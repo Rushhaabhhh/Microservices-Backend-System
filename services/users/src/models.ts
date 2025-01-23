@@ -10,6 +10,10 @@ const userSchema = new Schema({
       type: String, 
       required: true 
     },
+    password: {
+      type: String,
+      required: true,
+    },
     preferences: {
       promotions: { type: Boolean, default: true },
       orderUpdates: { type: Boolean, default: true },
