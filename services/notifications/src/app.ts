@@ -1,103 +1,145 @@
+import express, { Request, Response, NextFunction } from "express";
 import morgan from "morgan";
-import express from "express";
-import { Notification } from "./models";
+import { Notification, NotificationPriority, NotificationType } from "./models";
+import { notificationProcessor } from "./processor";
 
 const app = express();
 
+// Middleware
 app.use(express.json());
 app.use(morgan("common"));
 
+// Validation middleware for notification creation
+const validateNotificationPayload = (req: Request, res: Response, next: NextFunction): void => {
+  const { userId, type, content, priority } = req.body;
 
-// Create a notification
-// app.post(
-//   "/",
-//   validateRequestBody(notificationCreationSchema),
-//   async (req, res): Promise<void> => {
-//     try {
-//       const { userId, type, content } = req.body;
-
-//       // Save the notification in the database
-//       const notification = await Notification.create(req.body);
-
-//       const user = await User.findById(userId);
-//       if (!user || !user.email) {
-//         return res.status(404).json({ error: "User not found or email not available" });
-//       }
-
-//       // Send an email notification
-//       const subject = `New Notification: ${type}`;
-//       const emailContent = typeof content === "string" ? content : JSON.stringify(content);
-//       await sendEmail(user.email, subject, emailContent);
-
-//       res.status(201).json({ result: notification, message: "Email sent successfully." });
-//     } catch (err) {
-//       console.error(err);
-//       res.status(500).json({ error: err instanceof Error ? err.message : "Unexpected error" });
-//     }
-//   }
-// );
-
-// Get all notifications for a user
-app.get(
-  "/:userId",
-  async (req, res): Promise<void> => {
-    try {
-      const { userId } = req.params;
-
-      // Fetch notifications from the database
-      const notifications = await Notification.find({ userId }).sort({ sentAt: -1 });
-
-      // Respond with the notifications
-      res.json({ result: notifications });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "Unexpected error" });
-    }
+  if (!userId) {
+    res.status(400).json({ error: "User ID is required" });
+    return;
   }
-);
 
-// Get all unread notifications for a user
-app.get(
-  "/:userId",
-  async (req, res): Promise<void> => {
+  if (!Object.values(NotificationType).includes(type)) {
+    res.status(400).json({ error: "Invalid notification type" });
+    return;
+  }
+
+  if (!content) {
+    res.status(400).json({ error: "Notification content is required" });
+    return;
+  }
+
+  if (priority && !Object.values(NotificationPriority).includes(priority)) {
+    res.status(400).json({ error: "Invalid notification priority" });
+    return;
+  }
+
+  next();
+};
+
+// Manually create a notification (for testing or manual intervention)
+app.post(
+  "/notifications", 
+  validateNotificationPayload,
+  async (req, res) => {
     try {
-      const { userId } = req.params;
+      const { userId, type, content, priority } = req.body;
 
-      // Fetch unread notifications
-      const unreadNotifications = await Notification.find({ userId, read: false }).sort({
-        sentAt: -1,
+      // Process and create notification
+      const notification = await notificationProcessor.processNotification({
+        userId,
+        type,
+        content,
+        priority: priority || NotificationPriority.STANDARD
       });
 
-      // Respond with unread notifications
-      res.json({ result: unreadNotifications });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "Unexpected error" });
-    }
-  }
-);
-
-// Mark a notification as read
-app.patch(
-  "/:userId",
-  async (req, res): Promise<void> => {
-    try {
-      const { userId } = req.params;
-
-      // Mark all unread notifications as read
-      const result = await Notification.updateMany(
-        { userId, read: false },
-        { $set: { read: true } }
-      );
-
-      // Respond with success message
-      res.status(200).json({
-        message: "All notifications marked as read.",
-        updatedCount: result.modifiedCount,
+      res.status(201).json({
+        message: "Notification created successfully",
+        result: notification
       });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : "Unexpected error" });
+      console.error(err);
+      res.status(500).json({ 
+        error: err instanceof Error ? err.message : "Unexpected error" 
+      });
     }
   }
 );
+
+// Get paginated notifications for a user
+app.get("/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { 
+      priority, 
+      read, 
+      limit = 50, 
+      page = 1 
+    } = req.query;
+
+    // Build dynamic query
+    const query: any = { userId };
+    
+    if (priority) query.priority = priority;
+    if (read !== undefined) query.read = read === 'true';
+
+    // Pagination
+    const options = {
+      limit: Number(limit),
+      skip: (Number(page) - 1) * Number(limit),
+      sort: { sentAt: -1 }
+    };
+
+    // Fetch notifications with pagination
+    const [notifications, total] = await Promise.all([
+      Notification.find(query, null, options),
+      Notification.countDocuments(query)
+    ]);
+
+    res.json({
+      result: notifications,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      error: err instanceof Error ? err.message : "Unexpected error" 
+    });
+  }
+});
+
+// Mark notifications as read
+app.patch("/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { priority, notificationIds } = req.body;
+
+    let updateQuery: any = { 
+      userId, 
+      read: false 
+    };
+
+    // Optional filtering by priority or specific notification IDs
+    if (priority) updateQuery.priority = priority;
+    if (notificationIds) updateQuery._id = { $in: notificationIds };
+
+    const result = await Notification.updateMany(
+      updateQuery,
+      { $set: { read: true } }
+    );
+
+    res.json({
+      message: "Notifications marked as read",
+      updatedCount: result.modifiedCount
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      error: err instanceof Error ? err.message : "Unexpected error" 
+    });
+  }
+});
 
 export default app;
-
