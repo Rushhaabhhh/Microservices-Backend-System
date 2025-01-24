@@ -42,7 +42,7 @@ const userTypeDefs = buildSchema(`
 
     type Query {
         users: [User]
-        getUserByEmail(email: String!): User
+        user(_id: ID!): User
     }
 
     type Mutation {

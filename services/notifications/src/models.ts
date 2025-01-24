@@ -12,7 +12,7 @@ const NotificationSchema = new Schema(
       required: true,
     },
     content: {
-      type: Schema.Types.Mixed, 
+      type: Schema.Types.Mixed,
       required: true,
     },
     sentAt: {
@@ -24,7 +24,7 @@ const NotificationSchema = new Schema(
       default: false,
     },
   },
-  { timestamps: true } 
+  { timestamps: true }
 );
 
 export const Notification = model("Notification", NotificationSchema);

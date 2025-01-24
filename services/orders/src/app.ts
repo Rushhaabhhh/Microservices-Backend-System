@@ -1,6 +1,7 @@
+import express, { Request, Response, NextFunction } from "express";
 import morgan from "morgan";
-import express from "express";
-import z from "zod";
+import { z } from "zod";
+import axios from "axios";
 import { Order } from "./models";
 import { producer } from "./kafka";
 
@@ -11,7 +12,6 @@ app.use(morgan("common"));
 
 // Zod schemas for validation
 const orderCreationSchema = z.object({
-  userId: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid user ID"),
   products: z.array(
     z.object({
       _id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid product ID"),
@@ -26,8 +26,8 @@ const orderIdParamSchema = z.object({
 
 // Middleware for validating request bodies
 const validateRequestBody =
-  (schema: z.ZodSchema) =>
-  (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  (schema: z.ZodTypeAny) =>
+  (req: Request, res: Response, next: NextFunction) => {
     try {
       req.body = schema.parse(req.body);
       next();
@@ -42,8 +42,8 @@ const validateRequestBody =
 
 // Middleware for validating request params
 const validateRequestParams =
-  (schema: z.ZodSchema) =>
-  (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  (schema: z.ZodTypeAny) =>
+  (req: Request, res: Response, next: NextFunction) => {
     try {
       req.params = schema.parse(req.params);
       next();
@@ -60,23 +60,53 @@ const validateRequestParams =
 app.post(
   "/",
   validateRequestBody(orderCreationSchema),
-  async (req, res): Promise<void> => {
+  async (req, res) => {
     try {
-      const { userId, products } = req.body;
+      const userId = req.headers["x-user-id"];
 
-      // Create a new order
-      const newOrder = await Order.create({ userId, products });
+      // Validate user
+      if (!userId) {
+        res.status(401).send("Unauthorized");
+        return;
+      }
+
+      try {
+        await axios.get(`${process.env.USERS_SERVICE_URL}/${userId}`);
+      } catch (e) {
+        console.error(e);
+        res.status(401).send("Unauthorized");
+        return;
+      }
+
+      // Validate product availability
+      for (const { _id, quantity } of req.body.products) {
+        try {
+          const product = (
+            await axios.get(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`)
+          ).data as { result: { _id: string; quantity: number } };
+
+          if (product.result.quantity < quantity) {
+            res.status(400).send("Insufficient product quantity");
+            return;
+          }
+        } catch (e) {
+          res.status(400).send(`Product ${_id} not found`);
+          return;
+        }
+      }
+
+      // Create order
+      const order = await Order.create({ products: req.body.products, userId });
 
       // Publish an order-placed event to Kafka
       await producer.send({
         topic: "order-events",
         messages: [
-          { value: JSON.stringify({ type: "order-placed", payload: newOrder }) },
+          { value: JSON.stringify({ type: "order-placed", payload: order }) },
         ],
       });
 
-      // Return the created order
-      res.status(201).json({ result: newOrder });
+      res.status(201).json({ result: order });
     } catch (err) {
       if (err instanceof Error) {
         res.status(500).json({ error: err.message });
@@ -91,7 +121,7 @@ app.post(
 app.get(
   "/:id",
   validateRequestParams(orderIdParamSchema),
-  async (req, res): Promise<void> => {
+  async (req, res) => {
     try {
       const { id } = req.params;
       const order = await Order.findById(id);
@@ -113,7 +143,7 @@ app.get(
 );
 
 // Get all orders
-app.get("/", async (req, res): Promise<void> => {
+app.get("/", async (req, res) => {
   try {
     const orders = await Order.find({});
     res.json({ result: orders });
