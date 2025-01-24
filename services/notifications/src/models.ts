@@ -14,7 +14,6 @@ export enum NotificationPriority {
   STANDARD = 'standard',   // Priority 2 events
 }
 
-// Notification Schema with Enhanced Priority and Type Support
 const NotificationSchema = new Schema(
   {
     userId: {

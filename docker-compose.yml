@@ -39,6 +39,19 @@ services:
     networks:
       - backend
 
+  notifications-db:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: username
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: notifications-service
+    ports:
+      - 27020:27017
+    networks:
+      - backend
+
+  
+
   kafka:
     image: wurstmeister/kafka
     ports:
@@ -109,6 +122,24 @@ services:
       - kafka
     networks:
       - backend
+  
+  notifications-service:
+    build:
+      context: ./services/notifications
+      dockerfile: Dockerfile
+    environment:
+      PRODUCTS_SERVICE_PORT: 8000
+      KAFKA_BROKERS: kafka:9092
+      MONGO_URI: mongodb://username:password@notifications-db:27017/notifications-service?authSource=admin
+    ports:
+      - 8004:8000
+    depends_on:
+      - notifications-db
+      - kafka
+    networks:
+      - backend
+
+  
 
   api-gateway:
     build:

@@ -11,13 +11,11 @@ const kafka = new Kafka({
   }
 });
 
-// Producer with Advanced Configuration
 const producer = kafka.producer({
   allowAutoTopicCreation: true,
   transactionTimeout: 30000
 });
 
-// Consumer with Robust Configuration
 const consumer = kafka.consumer({
   groupId: "notifications-consumer-group",
   sessionTimeout: 45000,
@@ -25,7 +23,6 @@ const consumer = kafka.consumer({
   rebalanceTimeout: 60000
 });
 
-// Connection and Disconnection Methods
 const connectProducer = async () => {
   try {
     await producer.connect();
