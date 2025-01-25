@@ -1,10 +1,4 @@
 version: "3.8"
-
-
-# secrets:
-#   sendgrid_api_key:
-#     external: true
-
 services:
   cache-db:
     image: redis
@@ -134,13 +128,17 @@ services:
       context: ./services/notifications
       dockerfile: Dockerfile
     environment:
-      - NOTIFICATIONS_SERVICE_PORT=8000
-      - KAFKA_BROKERS=kafka:9092
-      - MONGO_URI=mongodb://username:password@notifications-db:27017/notifications-service?authSource=admin
-      - SENDGRID_API_KEY=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
-      - SENDER_EMAIL=notifications@yourcompany.com
-    # secrets:
-    #   - sendgrid_api_key
+      NOTIFICATIONS_SERVICE_PORT: 8000
+      KAFKA_BROKERS: kafka:9092
+      MONGO_URI: mongodb://username:password@notifications-db:27017/notifications-service?authSource=admin
+      SMTP_HOST: 'smtp.gmail.com'
+      SMTP_PORT: '587'
+      SMTP_SECURE: 'false' 
+      SMTP_USER: 'rushabhkhatri748@gmail.com'
+      SMTP_PASS: 'bxsd qvhc nxeb mrpm'
+      SENDER_EMAIL: 'rushabhmistry16@gmail.com'
+      USERS_SERVICE_URL: 'http://users-service:8000'
+
     ports:
       - 8004:8000
     depends_on:

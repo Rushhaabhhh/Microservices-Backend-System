@@ -98,6 +98,12 @@ app.post(
       // Create order
       const order = await Order.create({ products: req.body.products, userId });
 
+      const orderEventLog = {
+        userId: order.userId,
+        orderId: order._id,
+      }
+      console.log(`Order placed: ${JSON.stringify(orderEventLog)}`);
+      
       // Publish an order-placed event to Kafka
       await producer.send({
         topic: "order-events",

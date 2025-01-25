@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { NotificationType } from "./models";
-import mongoose from "mongoose";
+import axios from "axios";
 
 // Configure Nodemailer
 const transporter = nodemailer.createTransport({
@@ -42,6 +42,11 @@ const formatEmailContent = (type: NotificationType, content: any): string => {
   }
 };
 
+const senderEmail = process.env.SENDER_EMAIL;
+  if (!senderEmail) {
+    throw new Error("SENDER_EMAIL is not defined");
+  }
+
 // Comprehensive Email Sending Service
 export const sendEmail = async (
   userId: string,
@@ -49,38 +54,56 @@ export const sendEmail = async (
   type: NotificationType,
   content: any
 ) => {
-  const senderEmail = process.env.SENDER_EMAIL;
-  if (!senderEmail) {
-    throw new Error("SENDER_EMAIL is not defined");
-  }
+  console.log('Sending Email - Context:', {
+    userId,
+    subject,
+    type,
+    content,
+    smtpHost: process.env.SMTP_HOST,
+    smtpUser: process.env.SMTP_USER ? 'Configured' : 'Missing'
+  });
 
   try {
-    // Fetch user to get email
-    const user = await mongoose.model("User").findById(userId);
+    let userResponse;
+      try {
+        userResponse = await axios.get(
+          `${process.env.USERS_SERVICE_URL}/${userId}`,
+          { timeout: 5000 }
+        );
+      } catch (fetchError) {
+        console.error("User Retrieval Error:", {
+          message: (fetchError as Error).message,
+          url: `${process.env.USERS_SERVICE_URL}/${userId}`,
+        });
+        throw new Error(
+          `Failed to retrieve user details: ${(fetchError as Error).message}`
+        );
+      }
 
-    if (!user || !user.email) {
-      console.warn(`No email found for user ${userId}`);
-      return {
-        success: false,
-        reason: "No user email found",
-      };
-    }
+      const userEmail = userResponse.data?.result?.email || userResponse.data?.email;      console.log("User Email Retrieved:", {
+        userId: userId,
+        email: userEmail,
+      });
+      if (!userEmail) {
+        console.warn(`No email found for user ${userId}`);
+        return null;
+      }
 
     const htmlContent = formatEmailContent(type, content);
 
     const mailOptions = {
       from: senderEmail,
-      to: user.email,
+      to: userEmail,
       subject: subject,
-      text: JSON.stringify(content), // Plaintext alternative
-      html: htmlContent, // HTML content
+      text: JSON.stringify(content), 
+      html: htmlContent, 
     };
 
     // Send email using Nodemailer
     const info = await transporter.sendMail(mailOptions);
 
     // Log successful email delivery
-    console.log(`Email sent to ${user.email} for user ${userId}. Message ID:`, info.messageId);
+    console.log(`Email sent to ${userEmail} for user ${userId}. Message ID:`, info.messageId);
 
     return {
       success: true,

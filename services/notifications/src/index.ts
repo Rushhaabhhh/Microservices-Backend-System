@@ -11,9 +11,11 @@ const main = async () => {
     // Validate essential environment variables
     const requiredEnvs = [
       'MONGO_URL', 
-      'KAFKA_BROKERS', 
-      'NOTIFICATIONS_SERVICE_PORT',
-      'SENDGRID_API_KEY'
+      'KAFKA_BROKERS',
+    'USERS_SERVICE_URL',
+    'SMTP_HOST',
+    'SMTP_USER',
+    'SMTP_PASS'
     ];
 
     requiredEnvs.forEach(env => {
