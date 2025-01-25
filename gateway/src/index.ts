@@ -1,6 +1,26 @@
+import express from 'express';
 import { config } from "dotenv";
-config();
+import client from 'prom-client';
+
 import app from "./app";
+
+config();
+const METRICS_PORT = process.env.METRICS_PORT;
+
+
+const register = new client.Registry();
+
+register.setDefaultLabels({
+  app: 'graphql-gateway'
+});
+
+client.collectDefaultMetrics({ register });
+
+const metricsApp = express();
+metricsApp.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
 
 import { consumer } from "./library/kafka";
 import { cacheClient } from "./library/redis";
@@ -23,4 +43,8 @@ main().catch(async (e) => {
   console.error(e);
   await consumer.disconnect();
   process.exit(1);
+});
+
+metricsApp.listen(METRICS_PORT, () => {
+  console.log(`📊 Metrics available at http://localhost:${METRICS_PORT}/metrics`);
 });

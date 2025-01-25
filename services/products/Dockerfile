@@ -10,8 +10,7 @@ RUN yarn
 COPY . .
 
 
-ENV PORT=8000
-
-EXPOSE $PORT
+EXPOSE 8000
+EXPOSE 9202
 
 CMD ["yarn", "start"]

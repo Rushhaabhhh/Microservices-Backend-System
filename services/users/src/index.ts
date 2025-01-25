@@ -1,10 +1,32 @@
+import express from 'express';
 import { config } from 'dotenv';
 import mongoose from 'mongoose';
+import client from 'prom-client';
+
 
 import app from './app';
 
 config();
 
+const METRICS_PORT = process.env.METRICS_PORT;
+
+// Create a Registry to register the metrics
+const register = new client.Registry();
+
+register.setDefaultLabels({
+  app: 'user-service'
+});
+
+client.collectDefaultMetrics({ register });
+
+
+// Expose metrics endpoint
+const metricsApp = express();
+metricsApp.get('/metrics', async (req, res) => {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+});
+  
 const main = async () => {
     const mongoUrl = process.env.MONGO_URL;
     if (!mongoUrl) {
@@ -18,6 +40,10 @@ main().then(() => {
         console.log(`Server is running on port ${process.env['USER_SERVICE_PORT']}`);
     });
 }).catch(async (err) => {
-    console.error(err);
     process.exit(1);
 });
+
+// Start the metrics server
+metricsApp.listen(METRICS_PORT, () => {
+    console.log(`Metrics available at http://localhost:${METRICS_PORT}/metrics`);
+  });

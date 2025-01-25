@@ -1,7 +1,8 @@
-import express, { Request, Response, NextFunction } from "express";
-import morgan from "morgan";
 import { z } from "zod";
 import axios from "axios";
+import morgan from "morgan"; 
+import express, { Request, Response, NextFunction } from "express";
+
 import { Order } from "./models";
 import { producer } from "./kafka";
 
