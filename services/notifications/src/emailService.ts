@@ -1,16 +1,21 @@
-import sgMail from "@sendgrid/mail";
+import nodemailer from "nodemailer";
 import { NotificationType } from "./models";
+import mongoose from "mongoose";
 
-// Configure SendGrid
-const apiKey = process.env.SENDGRID_API_KEY;
-if (!apiKey) {
-  throw new Error("SENDGRID_API_KEY is not defined");
-}
-sgMail.setApiKey(apiKey);
+// Configure Nodemailer
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || "587", 10),
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.SMTP_USER, 
+    pass: process.env.SMTP_PASS, 
+  },
+});
 
 // Email Template Formatter
 const formatEmailContent = (type: NotificationType, content: any): string => {
-  switch(type) {
+  switch (type) {
     case NotificationType.USER_UPDATE:
       return `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
@@ -39,8 +44,8 @@ const formatEmailContent = (type: NotificationType, content: any): string => {
 
 // Comprehensive Email Sending Service
 export const sendEmail = async (
-  to: string, 
-  subject: string, 
+  userId: string,
+  subject: string,
   type: NotificationType,
   content: any
 ) => {
@@ -49,34 +54,41 @@ export const sendEmail = async (
     throw new Error("SENDER_EMAIL is not defined");
   }
 
-  const htmlContent = formatEmailContent(type, content);
-
-  const msg = {
-    to, 
-    from: senderEmail, 
-    subject, 
-    text: JSON.stringify(content),
-    html: htmlContent,
-  };
-
   try {
-    const [response] = await sgMail.send(msg);
-    
+    // Fetch user to get email
+    const user = await mongoose.model("User").findById(userId);
+
+    if (!user || !user.email) {
+      console.warn(`No email found for user ${userId}`);
+      return {
+        success: false,
+        reason: "No user email found",
+      };
+    }
+
+    const htmlContent = formatEmailContent(type, content);
+
+    const mailOptions = {
+      from: senderEmail,
+      to: user.email,
+      subject: subject,
+      text: JSON.stringify(content), // Plaintext alternative
+      html: htmlContent, // HTML content
+    };
+
+    // Send email using Nodemailer
+    const info = await transporter.sendMail(mailOptions);
+
     // Log successful email delivery
-    console.log(`Email sent to ${to}. Response:`, response);
-    
+    console.log(`Email sent to ${user.email} for user ${userId}. Message ID:`, info.messageId);
+
     return {
       success: true,
-      messageId: response.headers['x-message-id']
+      messageId: info.messageId,
     };
   } catch (error) {
-    console.error("Error sending email:", error);
-    
-    // Detailed error logging
-    if (error instanceof Error && (error as any).response) {
-      console.error('SendGrid Error Details:', (error as any).response.body);
-    }
-    
+    console.error(`Error sending email for user ${userId}:`, error);
+
     throw new Error("Failed to send email");
   }
 };

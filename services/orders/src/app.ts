@@ -102,8 +102,12 @@ app.post(
       await producer.send({
         topic: "order-events",
         messages: [
-          { value: JSON.stringify({ type: "order-placed", payload: order }) },
-        ],
+          { value: JSON.stringify({
+            userId: order.userId, 
+            orderId: order._id,
+            eventType: 'order-placed'
+          }) 
+        }],
       });
 
       res.status(201).json({ result: order });

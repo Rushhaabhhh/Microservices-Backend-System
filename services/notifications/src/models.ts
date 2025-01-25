@@ -21,6 +21,10 @@ const NotificationSchema = new Schema(
       required: true,
       index: true
     },
+    email: {
+      type: String,
+      required: true
+    },
     type: {
       type: String,
       enum: Object.values(NotificationType),
