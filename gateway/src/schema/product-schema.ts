@@ -22,6 +22,7 @@ const productTypeDefs = buildSchema(`
 
   type Mutation {
     createProduct(input: CreateProductInput): Product
+    deleteProduct(id: ID!): Product
   }
 `);
 

@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import mongoose from "mongoose";
 
 import app from "./app";
-import { NotificationProcessorService } from "./processor";
+import { NotificationProcessorService } from "./EventProcessor/processor";
 import { consumer, producer, connectConsumer, connectProducer } from "./kafka";
 
 config();

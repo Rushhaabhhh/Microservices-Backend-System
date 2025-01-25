@@ -1,6 +1,5 @@
 import axios from "axios";
 import nodemailer from "nodemailer";
-
 import { NotificationType } from "./models";
 
 // Configure Nodemailer
@@ -15,34 +14,72 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Formats email content based on notification type.
- * @param {NotificationType} type - Type of notification.
- * @param {any} content - Notification content.
- * @returns {string} - Formatted HTML email content.
+ * Generates a personalized email template with dynamic content.
+ * @param {NotificationType} type - Type of notification
+ * @param {any} content - Notification content
+ * @returns {string} - Formatted HTML email content
  */
-const formatEmailContent = (type: any, content: any) => {
+const formatEmailContent = (type: NotificationType, content: any, userName: string) => {
+  // Common email styles
+  const emailStyles = `
+    <style>
+      body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #f4f4f4; padding: 20px; text-align: center; }
+      .content { background-color: #ffffff; padding: 20px; border-radius: 5px; }
+      .footer { margin-top: 20px; font-size: 12px; color: #777; text-align: center; }
+    </style>
+  `;
+
   switch (type) {
     case NotificationType.USER_UPDATE:
       return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-          <h2>Profile Update Notification</h2>
-          <p>Your profile has been updated with the following details:</p>
-          <pre>${JSON.stringify(content, null, 2)}</pre>
+        ${emailStyles}
+        <div>
+          <div class="header">
+            <h1>Welcome to Our Backend System, ${userName}!</h1>
+          </div>
+          <div class="content">
+            <p>Great news! Your account has been successfully created and configured in our backend system.</p>
+            
+            <h3>What This Means for You:</h3>
+            <ul>
+              <li>You now have full access to our platform's features</li>
+              <li>Your profile is set up and ready to go</li>
+              <li>You'll receive important updates directly to this email</li>
+            </ul>
+
+            <p>We're excited to have you on board. If you have any questions, our support team is always here to help!</p>
+          </div>
+          <div class="footer">
+            © ${new Date().getFullYear()} Our Backend System. All rights reserved.
+          </div>
         </div>
       `;
-    case NotificationType.ORDER_UPDATE:
-      return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-          <h2>Order Status Update</h2>
-          <p>Your order status has changed:</p>
-          <pre>${JSON.stringify(content, null, 2)}</pre>
-        </div>
-      `;
+
+      case NotificationType.ORDER_UPDATE:
+        return `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+            <h2>Order Status Update</h2>
+            <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word;">
+              ${JSON.stringify(content, null, 2)}
+            </pre>
+          </div>
+        `;
+
     default:
       return `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-          <h2>Notification</h2>
-          <pre>${JSON.stringify(content, null, 2)}</pre>
+        ${emailStyles}
+        <div>
+          <div class="header">
+            <h1>Notification for ${userName}</h1>
+          </div>
+          <div class="content">
+            <p>You have a new notification:</p>
+            <pre>${JSON.stringify(content, null, 2)}</pre>
+          </div>
+          <div class="footer">
+            © ${new Date().getFullYear()} Our Backend System
+          </div>
         </div>
       `;
   }
@@ -50,49 +87,45 @@ const formatEmailContent = (type: any, content: any) => {
 
 const senderEmail = process.env.SENDER_EMAIL;
 if (!senderEmail) {
-  throw new Error("SENDER_EMAIL is not defined");
+  throw new Error("SENDER_EMAIL is not defined in environment variables");
 }
 
 /**
- * Sends an email notification.
- * @param {string} userId - User ID to retrieve email for.
- * @param {string} subject - Subject of the email.
- * @param {NotificationType} type - Type of notification.
- * @param {any} content - Notification content.
- * @returns {Promise<{success: boolean, messageId: string | null}>} - Email sending status.
+ * Sends a comprehensive email notification with personalized content.
+ * @param {string} userId - User identifier
+ * @param {string} subject - Email subject line
+ * @param {NotificationType} type - Notification type
+ * @param {any} content - Notification payload
+ * @returns {Promise<{success: boolean, messageId: string | null}>} Email sending result
  */
-export const sendEmail = async (userId: string, subject: string, type: NotificationType, content: any) => {
-  console.log("Sending Email - Context:", {
-    userId,
-    subject,
-    type,
-    content,
-    smtpHost: process.env.SMTP_HOST,
-    smtpUser: process.env.SMTP_USER ? "Configured" : "Missing",
-  });
+export const sendEmail = async (
+  userId: string, 
+  subject: string, 
+  type: NotificationType, 
+  content: any
+) => {
+  console.log("Preparing to send email", { userId, subject, type });
 
   try {
-    let userResponse;
-    try {
-      userResponse = await axios.get(`${process.env.USERS_SERVICE_URL}/${userId}`, { timeout: 5000 });
-    } catch (fetchError) {
-      console.error("User Retrieval Error:", {
-        message: (fetchError as Error).message,
-        url: `${process.env.USERS_SERVICE_URL}/${userId}`,
-      });
-      throw new Error(`Failed to retrieve user details: ${(fetchError as Error).message}`);
-    }
+    // Retrieve user details
+    const userResponse = await axios.get(
+      `${process.env.USERS_SERVICE_URL}/${userId}`, 
+      { timeout: 5000 }
+    );
 
-    const userEmail = userResponse.data?.result?.email || userResponse.data?.email;
-    console.log("User Email Retrieved:", { userId, email: userEmail });
+    const userData = userResponse.data?.result || userResponse.data;
+    const userEmail = userData?.email;
+    const userName = userData?.name || userData?.username || 'Valued Customer';
 
     if (!userEmail) {
       console.warn(`No email found for user ${userId}`);
       return null;
     }
 
-    const htmlContent = formatEmailContent(type, content);
+    // Generate personalized HTML content
+    const htmlContent = formatEmailContent(type, content, userName);
 
+    // Prepare email options
     const mailOptions = {
       from: senderEmail,
       to: userEmail,
@@ -101,16 +134,17 @@ export const sendEmail = async (userId: string, subject: string, type: Notificat
       html: htmlContent,
     };
 
+    // Send email
     const info = await transporter.sendMail(mailOptions);
 
-    console.log(`Email sent to ${userEmail} for user ${userId}. Message ID:`, info.messageId);
+    console.log(`Personalized email sent to ${userEmail}. Message ID: ${info.messageId}`);
 
     return {
       success: true,
       messageId: info.messageId,
     };
   } catch (error) {
-    console.error(`Error sending email for user ${userId}:`, error);
-    throw new Error("Failed to send email");
+    console.error(`Email sending failed for user ${userId}:`, error);
+    throw new Error("Comprehensive email notification failed");
   }
 };

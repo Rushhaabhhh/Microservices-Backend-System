@@ -1,7 +1,7 @@
 import morgan from "morgan";
 import express, { Request, Response, NextFunction } from "express";
 
-import { NotificationProcessorService } from "./processor";
+import { NotificationProcessorService } from "./EventProcessor/processor";
 import { Notification, NotificationPriority, NotificationType } from "./models";
 
 const app = express();

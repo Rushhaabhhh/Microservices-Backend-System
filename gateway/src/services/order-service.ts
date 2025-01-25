@@ -74,17 +74,6 @@ const OrderService = {
       throw new Error(`Unable to update order with ID: ${id}`);
     }
   },
-
-  // Delete an order by ID
-  async delete({ id }: { id: string }) {
-    try {
-      const response = await client.delete(`/${id}`);
-      return response.data.result;
-    } catch (error) {
-      console.error(`Error deleting order with ID ${id}:`, (error as any).message);
-      throw new Error(`Unable to delete order with ID: ${id}`);
-    }
-  },
 } as const;
 
 export { OrderService };

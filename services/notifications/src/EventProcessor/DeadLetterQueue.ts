@@ -1,4 +1,4 @@
-import { producer } from "./kafka";
+import { producer } from "../kafka";
 
 export class DeadLetterQueueHandler {
   private readonly DLQ_TOPIC = "dead-letter-queue";

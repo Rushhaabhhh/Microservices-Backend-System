@@ -48,6 +48,7 @@ const userTypeDefs = buildSchema(`
     type Mutation {
         createUser(input: CreateUserInput!): CreateUserResult!
         updateUserPreferences(id: ID!, preferences: UpdateUserPreferencesInput!): User!
+        deleteUser(_id: ID!): User
     }
 `);
 
