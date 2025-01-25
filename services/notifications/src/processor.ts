@@ -1,81 +1,170 @@
-import { Kafka } from "kafkajs";
+import { Consumer, Kafka } from "kafkajs";
 import { Notification, NotificationType, NotificationPriority } from "./models";
 import { sendEmail } from "./emailService";
-import { consumer } from "./kafka";
+import { consumer, producer } from "./kafka";
 import axios from "axios";
+import { DeadLetterQueueHandler } from "./DeadLetterQueue";
 
-export class NotificationProcessor {
+export class NotificationProcessorService {
   private kafka: Kafka;
+  private deadLetterQueueHandler: DeadLetterQueueHandler;
+  static createNotificationForEvent: any;
+  highPriorityConsumer: Consumer;
+  standardPriorityConsumer: Consumer;
 
   constructor() {
     this.kafka = new Kafka({
       clientId: "notifications",
       brokers: (process.env["KAFKA_BROKERS"] || "").split(","),
     });
+    this.deadLetterQueueHandler = new DeadLetterQueueHandler();
+
+    // Configure different consumers for priority levels
+    this.highPriorityConsumer = this.kafka.consumer({ 
+      groupId: "priority1-notification-group",
+      sessionTimeout: 30000,
+      heartbeatInterval: 3000,
+    });
+
+    this.standardPriorityConsumer = this.kafka.consumer({ 
+      groupId: "priority2-notification-group",
+      sessionTimeout: 45000,
+      heartbeatInterval: 5000,
+    });
   }
 
-  // Kafka Event Consumer Setup
-  async startPriorityConsumer() {
+  // Kafka Event Consumer Setup with Dead Letter Queue Logic
+  async initializePriorityEventConsumer() {
     try {
-      await consumer.connect();
-      await consumer.subscribe({
-        topics: ["user-update-events", "order-events"],
+      // High Priority Consumer Setup
+      await this.highPriorityConsumer.connect();
+      await this.highPriorityConsumer.subscribe({
+        topics: ["user-update-events"],
         fromBeginning: false,
       });
 
-      await consumer.run({
-        eachMessage: async ({ topic, message }) => {
+      await this.highPriorityConsumer.run({
+        // Increased concurrency for high-priority events
+        partitionsConsumedConcurrently: 5,
+        eachMessage: async ({ topic, message, partition }: { topic: string; message: { value: Buffer | null; offset: string }; partition: number }) => {
           try {
             const event = JSON.parse(message.value!.toString());
-            console.log(`Processing Event on Topic: ${topic}`, event);
+            console.log(`Processing High Priority Event: ${topic}`, event);
 
-            switch (topic) {
-              case "user-update-events":
-                await this.handleUserUpdateEvent(event);
-                break;
-              case "order-events":
-                await this.handleOrderUpdateEvent(event);
-                break;
-              default:
-                console.warn(`Unhandled topic: ${topic}`);
+            const processingResult = await this.processUserUpdateEventWithRetry(
+              event, 
+              { topic, partition, offset: message.offset },
+            );
+
+            if (processingResult === false) {
+              await this.deadLetterQueueHandler.queueFailedMessage(topic, message.value!, { 
+                originalTopic: topic, 
+                partition, 
+                offset: message.offset,
+                reason: "High Priority Event Processing Failed"
+              });
             }
-          } catch (parseError) {
-            console.error(`Event parsing error on topic ${topic}:`, parseError);
+          } catch (error) {
+            console.error(`High Priority Event Processing Error: ${topic}`, error);
           }
         },
       });
 
-      console.log("Kafka Priority Consumer Started Successfully");
+      // Standard Priority Consumer Setup
+      await this.standardPriorityConsumer.connect();
+      await this.standardPriorityConsumer.subscribe({
+        topics: ["order-events"],
+        fromBeginning: false,
+      });
+
+      await this.standardPriorityConsumer.run({
+        // Lower concurrency for standard events
+        partitionsConsumedConcurrently: 2,
+        eachMessage: async ({ topic, message, partition }: { topic: string; message: { value: Buffer | null; offset: string }; partition: number }) => {
+          try {
+            const event = JSON.parse(message.value!.toString());
+            console.log(`Processing Standard Priority Event: ${topic}`, event);
+
+            const processingResult = await this.processOrderUpdateEventWithRetry(
+              event, 
+              { topic, partition, offset: message.offset },
+            );
+
+            if (processingResult === false) {
+              await this.deadLetterQueueHandler.queueFailedMessage(topic, message.value!, { 
+                originalTopic: topic, 
+                partition, 
+                offset: message.offset,
+                reason: "Standard Priority Event Processing Failed"
+              });
+            }
+          } catch (error) {
+            console.error(`Standard Priority Event Processing Error: ${topic}`, error);
+          }
+        },
+      });
+
+      console.log("Kafka Priority Consumers Started Successfully");
     } catch (setupError) {
-      console.error("Kafka Consumer Setup Failed:", setupError);
+      console.error("Kafka Consumers Setup Failed:", setupError);
       throw setupError;
     }
   }
 
-  // Handle User Update Priority 1 Event
-  private async handleUserUpdateEvent(event: any) {
-    await this.processNotification({
-      userId: event.userId,
-      type: NotificationType.USER_UPDATE,
-      content: event.details,
-      priority: NotificationPriority.CRITICAL,
-      metadata: {
-        updateType: event.updateType,
-      },
-    });
+  // Enhanced User Update Event Handler with Retry Logic
+  private async processUserUpdateEventWithRetry(
+    event: any, 
+    context: { topic: string; partition: number; offset: string },
+    retryCount: number = 0
+  ): Promise<boolean> {
+    const MAX_RETRIES = 5; // Increased for high-priority events
+    const BASE_DELAY = 500; // Shorter base delay for faster retries
+
+    try {
+      await this.createNotificationForEvent({
+        userId: event.userId,
+        type: NotificationType.USER_UPDATE,
+        content: event.details,
+        priority: NotificationPriority.CRITICAL,
+        metadata: {
+          updateType: event.updateType,
+          retryCount,
+        },
+      });
+      return true;
+    } catch (error) {
+      console.error(`User Update Event Processing Failed (Retry ${retryCount}):`, {
+        error: (error as Error).message,
+        event,
+      });
+
+      if (retryCount < MAX_RETRIES) {
+        // More aggressive exponential backoff for high-priority events
+        const backoffDelay = Math.pow(2, retryCount) * BASE_DELAY;
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        
+        return this.processUserUpdateEventWithRetry(event, context, retryCount + 1);
+      }
+      
+      return false;
+    }
   }
 
-  // Order Event Handler with Enhanced Logging
-  private async handleOrderUpdateEvent(event: any) {
-    console.log("Received Order Event:", JSON.stringify(event, null, 2));
+  // Enhanced Order Update Event Handler with Retry Logic
+  private async processOrderUpdateEventWithRetry(
+    event: any, 
+    context: { topic: string; partition: number; offset: string },
+    retryCount: number = 0
+  ): Promise<boolean> {
+    const MAX_RETRIES = 3;
 
     try {
       if (!event.userId) {
         console.error("Invalid Order Event - Missing userId", event);
-        return;
+        return false;
       }
 
-      await this.processNotification({
+      await this.createNotificationForEvent({
         userId: event.userId,
         type: NotificationType.ORDER_UPDATE,
         content: {
@@ -83,22 +172,37 @@ export class NotificationProcessor {
           eventDetails: event,
         },
         priority: NotificationPriority.STANDARD,
+        metadata: {
+          retryCount,
+        },
       });
 
       console.log("Order Event Processed Successfully:", {
         userId: event.userId,
         orderId: event.orderId,
       });
+
+      return true;
     } catch (error) {
-      console.error("Order Event Processing Comprehensive Error:", {
-        message: (error as Error).message,
-        event: event,
+      console.error(`Order Event Processing Failed (Retry ${retryCount}):`, {
+        error: (error as Error).message,
+        event,
       });
+
+      if (retryCount < MAX_RETRIES) {
+        // Exponential backoff
+        const backoffDelay = Math.pow(2, retryCount) * 1000;
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        
+        return this.processOrderUpdateEventWithRetry(event, context, retryCount + 1);
+      }
+      
+      return false;
     }
   }
 
   // Enhanced notification processing with comprehensive error handling
-  async processNotification(params: {
+  private async createNotificationForEvent(params: {
     userId: string;
     type: NotificationType;
     content: any;
@@ -202,6 +306,7 @@ export class NotificationProcessor {
   async shutdown() {
     try {
       await consumer.disconnect();
+      await producer.disconnect();
     } catch (error) {
       console.error("Error during notification processor shutdown:", error);
     }
@@ -209,4 +314,4 @@ export class NotificationProcessor {
 }
 
 // Export a singleton instance
-export const notificationProcessor = new NotificationProcessor();
+export const notificationProcessorService = new NotificationProcessorService();
