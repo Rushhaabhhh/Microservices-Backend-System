@@ -2,6 +2,8 @@ import { axios } from "../library/http";
 import Axios from "axios";
 import { cacheClient } from "../library/redis";
 import { Context } from "../types";
+import { verify } from "jsonwebtoken";
+
 
 const client = Axios.create({
   ...axios.defaults,
@@ -46,12 +48,19 @@ const ProductService = {
   // Create a new product
   async post({ input }: { input: any }, context: Context) {
     try {
-      const apiKey = context.headers["x-api-key"];
-      if (!apiKey || apiKey !== process.env["API_SECRET"]) {
-        throw new Error("Invalid API key");
-      }
+      const authorization = context.headers["authorization"];
+      if (!authorization) throw new Error("Authorization header is missing.");
 
-      const response = await client.post("/", input);
+      // Extract and verify the token
+      const token = authorization.split("Bearer ")[1];
+      if (!token) throw new Error("Invalid authorization token.");
+
+      const secret = process.env.API_SECRET;
+      if (!secret) throw new Error("API secret is missing.");
+      const payload = verify(token, secret) as unknown as { userId: string };
+      const userId = payload.userId;
+
+      const response = await client.post("/", input, { headers: { "x-user-id": userId } });
 
       // Check if 'data' exists in the response
       if (!response.data || !response.data.result) {
@@ -66,9 +75,22 @@ const ProductService = {
   },
 
   // Update a product by ID
-  async update({ id, input }: { id: string; input: any }) {
+  async update({ id, input }: { id: string; input: any }, context: Context) {
     try {
-      const response = await client.put(`/${id}`, input);
+
+      const authorization = context.headers["authorization"];
+      if (!authorization) throw new Error("Authorization header is missing.");
+
+      // Extract and verify the token
+      const token = authorization.split("Bearer ")[1];
+      if (!token) throw new Error("Invalid authorization token.");
+
+      const secret = process.env.API_SECRET;
+      if (!secret) throw new Error("API secret is missing.");
+      const payload = verify(token, secret) as unknown as { userId: string };
+      const userId = payload.userId;
+      
+      const response = await client.put(`/${id}`, input, { headers: { "x-user-id": userId } });
       return response.data.result;
     } catch (error) {
       console.error(`Error updating product with ID ${id}:`, (error as any).message);
@@ -77,9 +99,22 @@ const ProductService = {
   },
 
   // Delete a product by ID
-  async delete({ id }: { id: string }) {
+  async delete({ id }: { id: string }, context: Context) {
     try {
-      const response = await client.delete(`/${id}`);
+      const authorization = context.headers["authorization"];
+      if (!authorization) throw new Error("Authorization header is missing.");
+
+      // Extract and verify the token
+      const token = authorization.split("Bearer ")[1];
+      if (!token) throw new Error("Invalid authorization token.");
+
+      const secret = process.env.API_SECRET;
+      if (!secret) throw new Error("API secret is missing.");
+      const payload = verify(token, secret) as unknown as { userId: string };
+      const userId = payload.userId;
+
+
+      const response = await client.delete(`/${id}`,  { headers: { "x-user-id": userId } });
       return response.data.result;
     } catch (error) {
       console.error(`Error deleting product with ID ${id}:`, (error as any).message);
