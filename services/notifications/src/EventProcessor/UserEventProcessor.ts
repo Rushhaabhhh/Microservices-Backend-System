@@ -16,14 +16,16 @@ export class UserUpdateEventProcessor {
     context: { topic: string; partition: number; offset: string },
     retryCount: number = 0
   ): Promise<boolean> {
-    const MAX_RETRIES = 5; // Increased for high-priority events
-    const BASE_DELAY = 500; // Shorter base delay for faster retries
-
+    const MAX_RETRIES = 5; 
+    const BASE_DELAY = 500; 
     try {
       await this.createNotificationForEvent({
         userId: event.userId,
         type: NotificationType.USER_UPDATE,
-        content: event.details,
+        content: event.details || { 
+          message: 'User event processed', 
+          eventType: event.eventType 
+        },
         priority: NotificationPriority.CRITICAL,
         metadata: {
           updateType: event.updateType,
@@ -38,7 +40,6 @@ export class UserUpdateEventProcessor {
       });
 
       if (retryCount < MAX_RETRIES) {
-        // More aggressive exponential backoff for high-priority events
         const backoffDelay = Math.pow(2, retryCount) * BASE_DELAY;
         await new Promise(resolve => setTimeout(resolve, backoffDelay));
         
@@ -49,7 +50,6 @@ export class UserUpdateEventProcessor {
     }
   }
 
-  // Enhanced notification processing with comprehensive error handling
   private async createNotificationForEvent(params: {
     userId: string;
     type: NotificationType;

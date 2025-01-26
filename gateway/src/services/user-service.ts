@@ -45,7 +45,22 @@ const UserService = {
     }
   },
 
-
+  // Login a user
+  async loginUser({ input }: { input: { email: string; password: string } }) {
+    try {
+      const response = await client.post("/login", input);
+  
+      // Check if 'data' exists in the response
+      if (!response.data || !response.data.result) {
+        throw new Error("Unexpected response structure: Missing 'data.result'");
+      }
+  
+      return response.data.result;
+    } catch (error) {
+      console.error("Error logging in:", (error as any));
+      throw new Error((error as any).response?.data?.error || "Login failed");
+    }
+  },
 
   // Update user preferences
   async updatePreferences({ id, preferences }: { id: string; preferences: any }) {

@@ -15,6 +15,7 @@ const root = {
   users: UserService.getAll,
   user: UserService.getById,
   createUser: UserService.createUser,
+  loginUser: UserService.loginUser,
   updateUserPreferences: UserService.updatePreferences,
 
   products: ProductService.getAll,

@@ -5,6 +5,7 @@ import client from 'prom-client';
 
 
 import app from './app';
+import { producer } from "./kafka";
 
 config();
 
@@ -33,6 +34,7 @@ const main = async () => {
         throw new Error("MONGO_URL is not defined in the environment variables");
     }
     await mongoose.connect(mongoUrl);
+    await producer.connect();
 }
 
 main().then(() => {
@@ -40,6 +42,8 @@ main().then(() => {
         console.log(`Server is running on port ${process.env['USER_SERVICE_PORT']}`);
     });
 }).catch(async (err) => {
+    console.error(err);
+    await producer.disconnect();
     process.exit(1);
 });
 

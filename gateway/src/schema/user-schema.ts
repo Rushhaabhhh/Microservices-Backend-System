@@ -28,6 +28,16 @@ const userTypeDefs = buildSchema(`
         user: User!
     }
 
+    input LoginInput {
+        email: String!
+        password: String!
+    }
+
+    type LoginResult {
+        access_token: String!
+        user: User!
+    }
+
     input UserPreferencesInput {
         promotions: Boolean
         orderUpdates: Boolean
@@ -47,8 +57,9 @@ const userTypeDefs = buildSchema(`
 
     type Mutation {
         createUser(input: CreateUserInput!): CreateUserResult!
+        loginUser(input: LoginInput!): LoginResult!
         updateUserPreferences(id: ID!, preferences: UpdateUserPreferencesInput!): User!
-        deleteUser(_id: ID!): User
+        deleteUser(_id: ID!): User!
     }
 `);
 

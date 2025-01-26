@@ -45,7 +45,7 @@ export class NotificationProcessorService {
       // High Priority Consumer Setup
       await this.highPriorityConsumer.connect();
       await this.highPriorityConsumer.subscribe({
-        topics: ["user-update-events"],
+        topics: ["user-events", "order-events"],
         fromBeginning: false,
       });
 
@@ -79,7 +79,7 @@ export class NotificationProcessorService {
       // Standard Priority Consumer Setup
       await this.standardPriorityConsumer.connect();
       await this.standardPriorityConsumer.subscribe({
-        topics: ["order-events"],
+        topics: ["inventory-events"],
         fromBeginning: false,
       });
 

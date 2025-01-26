@@ -4,7 +4,9 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 
 import { User } from './models';
+import { producer } from "./kafka";
 import { signJWT } from './middleware';
+
 
 const app = express();
 
@@ -21,6 +23,12 @@ const userRegistrationSchema = z.object({
 
 const userIdParamSchema = z.object({
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid user ID'),
+});
+
+// New Zod schema for user login
+const userLoginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(6, 'Password must be at least 6 characters long'),
 });
 
 // Middleware for validating request bodies
@@ -97,6 +105,74 @@ app.post(
       res.status(201).json({
         result: {
           user: newUser,
+          access_token: token,
+        },
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+
+// User Login Endpoint
+app.post(
+  '/login',
+  validateRequestBody(userLoginSchema),
+  async (req, res): Promise<void> => {
+    try {
+      const { email, password } = req.body;
+
+      // Find user by email
+      const user = await User.findOne({ email });
+      
+      // Check if user exists
+      if (!user) {
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
+      }
+
+      // Compare provided password with stored hashed password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      // Check if password is correct
+      if (!isPasswordValid) {
+        res.status(401).json({ error: 'Invalid credentials' });
+        return;
+      }
+
+      // Generate a JWT token
+      const token = signJWT(user.id);
+
+      // Publish a user-login event to Kafka
+      await producer.send({
+        topic: "user-events",
+        messages: [
+          { 
+            value: JSON.stringify({
+              userId: user.id, 
+              email: user.email,
+              eventType: 'user-login',
+              details: {
+                message: 'User logged in successfully',
+                timestamp: new Date().toISOString(),
+                loginMethod: 'email' 
+              },
+              updateType: 'login',
+              timestamp: new Date().toISOString()
+            }) 
+          }
+        ],
+      });
+
+      // Return the user and access token
+      res.json({
+        result: {
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+          },
           access_token: token,
         },
       });
