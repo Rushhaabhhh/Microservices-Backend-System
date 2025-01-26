@@ -9,22 +9,40 @@ const client = Axios.create({
 });
 
 const OrderService = {
-  // Fetch all orders
   async getAll() {
     try {
       const response = await client.get("/");
-      return response.data.result;
+      
+      // Add name to products if missing
+      const ordersWithProductNames = response.data.result.map((order: { products: any[]; }) => ({
+        ...order,
+        products: order.products.map((product: { name: any; _id: any; }) => ({
+          ...product,
+          name: product.name || `Product ${product._id}`
+        }))
+      }));
+ 
+      return ordersWithProductNames;
     } catch (error) {
       console.error("Error fetching all orders:", (error as any));
       throw new Error("Unable to fetch orders.");
     }
   },
-
-  // Fetch an order by ID
+ 
   async getById({ id }: { id: string }) {
     try {
       const response = await client.get(`/${id}`);
-      return response.data.result;
+      
+      // Add name to products if missing
+      const orderWithProductNames = {
+        ...response.data.result,
+        products: response.data.result.products.map((product: { name: any; _id: any; }) => ({
+          ...product,
+          name: product.name || `Product ${product._id}`
+        }))
+      };
+ 
+      return orderWithProductNames;
     } catch (error) {
       console.error(`Error fetching order with ID ${id}:`, (error as any).message);
       throw new Error(`Unable to fetch order with ID: ${id}`);

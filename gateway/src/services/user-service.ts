@@ -19,13 +19,16 @@ const UserService = {
   },
 
   // Fetch a user by ID
-  async getById({ id }: { id: string }) {
+  async getById({ _id }: { _id: string }) {
     try {
-      const response = await client.get(`/${id}`);
+      if (!_id) {
+        throw new Error('User ID is required');
+      }
+      const response = await client.get(`/${_id}`);
       return response.data.result;
     } catch (error) {
-      console.error(`Error fetching user with ID ${id}:`, (error as any).message);
-      throw new Error(`Unable to fetch user with ID: ${id}`);
+      console.error(`Error fetching user with ID ${_id}:`, (error as any).message);
+      throw new Error(`Unable to fetch user with ID: ${_id}`);
     }
   },
 

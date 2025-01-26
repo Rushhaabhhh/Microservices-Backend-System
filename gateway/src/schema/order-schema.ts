@@ -5,6 +5,7 @@ const orderTypeDefs = buildSchema(`
   type OrderProduct {
     _id: ID!
     quantity: Int!
+    name: String
   }
 
   type Order {
