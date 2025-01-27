@@ -1,10 +1,12 @@
 import { Consumer, Kafka } from "kafkajs";
+import { v4 as uuidv4 } from 'uuid';
 
 import { consumer, producer } from "../kafka";
 import { DeadLetterQueueHandler } from "./DeadLetterQueue";
 import { UserUpdateEventProcessor } from "./UserEventProcessor";
 import { OrderUpdateEventProcessor } from "./OrderEventProcessor";
 import { ProductEventProcessor } from "./ProductEventProcessor";
+import { NotificationPriority, NotificationType, Notification } from "../models";
 
 export class NotificationProcessorService {
   private kafka: Kafka;
@@ -16,6 +18,7 @@ export class NotificationProcessorService {
   highPriorityConsumer: Consumer;
   standardPriorityConsumer: Consumer;
   static createNotificationForEvent: any;
+  emailService: any;
 
   constructor() {
     this.kafka = new Kafka({
@@ -139,7 +142,87 @@ export class NotificationProcessorService {
       console.error("Error during notification processor shutdown:", error);
     }
   }
+
+  private generateEmailTrackingId() {
+    return uuidv4();
+  };
+
+  async processEmailNotification(event: any, metadata: any) {
+    try {
+      const trackingId = this.generateEmailTrackingId();
+      const baseUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3000';
+      
+      // Create tracking pixel and click tracking URLs
+      const trackingPixel = `${baseUrl}/track/${trackingId}/open`;
+      const clickTrackingUrl = `${baseUrl}/track/${trackingId}/click`;
+
+      // Create notification record
+      const notification = await NotificationProcessorService.createNotificationWithTracking({
+        userId: event.userId,
+        email: event.email,
+        type: event.type as NotificationType,
+        priority: event.priority as NotificationPriority,
+        content: event.content,
+        metadata: {
+          ...metadata,
+          trackingId,
+          emailTracking: {
+            openTrackingUrl: trackingPixel,
+            clickTrackingUrl: clickTrackingUrl,
+            opened: false,
+            clicked: false,
+            openedAt: null,
+            clickedAt: null
+          }
+        }
+      });
+
+      // Add tracking pixel to email HTML
+      const trackingPixelHtml = `<img src="${trackingPixel}" width="1" height="1" style="display:none" />`;
+      const emailContent = event.content.html + trackingPixelHtml;
+
+      // Send email with tracking
+      await this.emailService.sendEmail({
+        to: event.email,
+        subject: event.content.subject,
+        html: emailContent,
+        metadata: {
+          trackingId
+        }
+      });
+
+      return notification;
+    } catch (error) {
+      console.error('Error processing email notification:', error);
+      throw error;
+    }
+  }
+
+  static async createNotificationWithTracking(data: any) {
+    try {
+      const notification = await Notification.create({
+        ...data,
+        id: uuidv4(), // Add id property
+        emailStatus: {
+          sent: true,
+          sentAt: new Date(),
+          read: false,
+          readAt: null,
+          clicked: false,
+          clickedAt: null
+        }
+      });
+      
+      await notification.save();
+      return notification;
+    } catch (error) {
+      console.error('Error creating notification with tracking:', error);
+      throw error;
+    }
+  }
 }
+
+
 
 // Export a singleton instance
 export const notificationProcessorService = new NotificationProcessorService();
