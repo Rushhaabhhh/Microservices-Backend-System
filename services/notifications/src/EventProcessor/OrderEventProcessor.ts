@@ -29,9 +29,12 @@ export class OrderUpdateEventProcessor {
         type: NotificationType.ORDER_UPDATE,
         content: {
           orderId: event.orderId,
-          eventDetails: event,
+          eventDetails: event.details || {
+            message: "Order event processed",
+            eventType: event.eventType,
+          },
         },
-        priority: NotificationPriority.STANDARD,
+        priority: NotificationPriority.CRITICAL,
         metadata: {
           retryCount,
         },
@@ -55,7 +58,14 @@ export class OrderUpdateEventProcessor {
         await new Promise(resolve => setTimeout(resolve, backoffDelay));
         
         return this.processOrderUpdateEventWithRetry(event, context, retryCount + 1);
+
       }
+      await this.deadLetterQueueHandler.handleFailedMessage(
+        context.topic,
+        event,
+        error as Error,
+        { partition: context.partition, offset: context.offset }
+      );
       
       return false;
     }

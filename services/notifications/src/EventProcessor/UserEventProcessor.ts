@@ -45,6 +45,13 @@ export class UserUpdateEventProcessor {
         
         return this.processUserUpdateEventWithRetry(event, context, retryCount + 1);
       }
+
+      await this.deadLetterQueueHandler.handleFailedMessage(
+        context.topic,
+        event,
+        error as Error,
+        { partition: context.partition, offset: context.offset }
+      );
       
       return false;
     }

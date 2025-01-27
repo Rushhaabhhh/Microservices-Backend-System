@@ -66,6 +66,16 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
           </div>
         `;
 
+      case NotificationType.PROMOTION: 
+        return `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+            <h2>Special Promotion Alert</h2>
+            <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word;">
+              ${JSON.stringify(content, null, 2)}
+            </pre>
+          </div>
+        `;
+
     default:
       return `
         ${emailStyles}

@@ -4,12 +4,14 @@ import { consumer, producer } from "../kafka";
 import { DeadLetterQueueHandler } from "./DeadLetterQueue";
 import { UserUpdateEventProcessor } from "./UserEventProcessor";
 import { OrderUpdateEventProcessor } from "./OrderEventProcessor";
+import { ProductEventProcessor } from "./ProductEventProcessor";
 
 export class NotificationProcessorService {
   private kafka: Kafka;
   private deadLetterQueueHandler: DeadLetterQueueHandler;
   private userUpdateEventProcessor: UserUpdateEventProcessor;
   private orderUpdateEventProcessor: OrderUpdateEventProcessor;
+  private productEventProcessor: ProductEventProcessor;
   
   highPriorityConsumer: Consumer;
   standardPriorityConsumer: Consumer;
@@ -24,6 +26,7 @@ export class NotificationProcessorService {
     this.deadLetterQueueHandler = new DeadLetterQueueHandler();
     this.userUpdateEventProcessor = new UserUpdateEventProcessor(this.deadLetterQueueHandler);
     this.orderUpdateEventProcessor = new OrderUpdateEventProcessor(this.deadLetterQueueHandler);
+    this.productEventProcessor = new ProductEventProcessor(this.deadLetterQueueHandler);
 
     // Configure different consumers for priority levels
     this.highPriorityConsumer = this.kafka.consumer({ 
@@ -57,10 +60,18 @@ export class NotificationProcessorService {
             const event = JSON.parse(message.value!.toString());
             console.log(`Processing High Priority Event: ${topic}`, event);
 
-            const processingResult = await this.userUpdateEventProcessor.processUserUpdateEventWithRetry(
-              event, 
-              { topic, partition, offset: message.offset },
-            );
+            let processingResult = false;
+            if (topic === "user-events") {
+              processingResult = await this.userUpdateEventProcessor.processUserUpdateEventWithRetry(
+                event, 
+                { topic, partition, offset: message.offset },
+              );
+            } else if (topic === "order-events") {
+              processingResult = await this.orderUpdateEventProcessor.processOrderUpdateEventWithRetry(
+                event, 
+                { topic, partition, offset: message.offset },
+              );
+            }
 
             if (processingResult === false) {
               await this.deadLetterQueueHandler.queueFailedMessage(topic, message.value!, { 
@@ -79,7 +90,7 @@ export class NotificationProcessorService {
       // Standard Priority Consumer Setup
       await this.standardPriorityConsumer.connect();
       await this.standardPriorityConsumer.subscribe({
-        topics: ["inventory-events"],
+        topics: ["promotional-events"],
         fromBeginning: false,
       });
 
@@ -91,7 +102,7 @@ export class NotificationProcessorService {
             const event = JSON.parse(message.value!.toString());
             console.log(`Processing Standard Priority Event: ${topic}`, event);
 
-            const processingResult = await this.orderUpdateEventProcessor.processOrderUpdateEventWithRetry(
+            const processingResult = await this.productEventProcessor.processProductEventWithRetry(
               event, 
               { topic, partition, offset: message.offset },
             );
@@ -101,7 +112,7 @@ export class NotificationProcessorService {
                 originalTopic: topic, 
                 partition, 
                 offset: message.offset,
-                reason: "Standard Priority Event Processing Failed"
+                reason: "Promotional Event Processing Failed"
               });
             }
           } catch (error) {
@@ -120,6 +131,8 @@ export class NotificationProcessorService {
   // Graceful shutdown method
   async shutdown() {
     try {
+      await this.highPriorityConsumer.disconnect();
+      await this.standardPriorityConsumer.disconnect();
       await consumer.disconnect();
       await producer.disconnect();
     } catch (error) {
