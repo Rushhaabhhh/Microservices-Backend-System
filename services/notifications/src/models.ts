@@ -49,11 +49,6 @@ const NotificationSchema = new Schema(
       default: false,
       index: true
     },
-    readAt: {
-      type: Date,
-      default: null,
-      index: true
-    },
     metadata: {
       type: Schema.Types.Mixed,
       default: {}
@@ -66,7 +61,5 @@ const NotificationSchema = new Schema(
 );
 
 NotificationSchema.index({ content: 'text' });
-NotificationSchema.index({ userId: 1, read: 1, type: 1 });
-NotificationSchema.index({ userId: 1, readAt: 1 });
 
 export const Notification = model("Notification", NotificationSchema);

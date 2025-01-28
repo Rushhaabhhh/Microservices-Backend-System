@@ -18,8 +18,14 @@ const transporter = nodemailer.createTransport({
  * @param {NotificationType} type - Type of notification
  * @param {any} content - Notification content
  * @returns {string} - Formatted HTML email content
+ * @param {string} userName - User's name
+ * @param {String} emailId - Email identifier
  */
-const formatEmailContent = (type: NotificationType, content: any, userName: string) => {
+const formatEmailContent = (type: NotificationType, content: any, userName: string, emailId: String) => {
+
+  const trackingUrl = `${process.env.NOTIFICATIONS_SERVICE_URL}/track-email/${emailId}`; 
+
+
   // Common email styles
   const emailStyles = `
     <style>
@@ -50,6 +56,8 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
 
             <p>We're excited to have you on board. If you have any questions, our support team is always here to help!</p>
           </div>
+          <img src="${trackingUrl}" style="display:none;" alt="tracker" />
+
           <div class="footer">
             © ${new Date().getFullYear()} Our Backend System. All rights reserved.
           </div>
@@ -60,6 +68,7 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
         return `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
             <h2>Order Status Update</h2>
+              <img src="${trackingUrl}" style="display:none;" alt="tracker" />
             <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word;">
               ${JSON.stringify(content, null, 2)}
             </pre>
@@ -69,6 +78,7 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
       case NotificationType.PROMOTION: 
         return `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+              <img src="${trackingUrl}" style="display:none;" alt="tracker" />
             <h2>Special Promotion Alert</h2>
             <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word;">
               ${JSON.stringify(content, null, 2)}
@@ -85,6 +95,7 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
           </div>
           <div class="content">
             <p>You have a new notification:</p>
+              <img src="${trackingUrl}" style="display:none;" alt="tracker" />
             <pre>${JSON.stringify(content, null, 2)}</pre>
           </div>
           <div class="footer">
@@ -133,7 +144,7 @@ export const sendEmail = async (
     }
 
     // Generate personalized HTML content
-    const htmlContent = formatEmailContent(type, content, userName);
+    const htmlContent = formatEmailContent(type, content, userName, userId);
 
     // Prepare email options
     const mailOptions = {
