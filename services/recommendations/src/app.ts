@@ -1,8 +1,62 @@
-import mongoose from 'mongoose';
+import axios from 'axios';
 import { producer } from './kafka';
-import { User, Product } from './models';
+import { User, Product, Order } from './models';
 
 class RecommendationService {
+  private orderServiceUrl: string;
+
+  constructor() {
+    this.orderServiceUrl = process.env.ORDER_SERVICE_URL || '';
+  }
+
+  // Fetch orders from external service and store them
+  async syncOrders() {
+    try {
+      const response = await axios.get(this.orderServiceUrl);
+      const orders = response.data;
+
+      for (const order of orders) {
+        await Order.findOneAndUpdate(
+          { orderId: order._id },
+          { 
+            userId: order.userId,
+            products: order.products.map((p: any) => ({
+              productId: p._id,
+              quantity: p.quantity,
+              name: p.name,
+              category: p.category,
+              price: p.price
+            }))
+          },
+          { upsert: true, new: true }
+        );
+
+        // Update user's purchase history
+        await User.findByIdAndUpdate(
+          order.userId,
+          {
+            $push: {
+              purchaseHistory: {
+                $each: order.products.map((p: any) => ({
+                  productId: p._id,
+                  category: p.category,
+                  quantity: p.quantity,
+                  price: p.price,
+                  date: order.date
+                }))
+              }
+            }
+          }
+        );
+      }
+
+      return orders.length;
+    } catch (error) {
+      console.error('Error syncing orders:', error);
+      throw error;
+    }
+  }
+
   // Get user's purchase history and analyze categories
   async analyzeUserPurchases(userId: any) {
     try {
@@ -42,7 +96,7 @@ class RecommendationService {
       const recommendedProducts = await Product.find({
         category: category,
         _id: { $nin: purchasedProductIds },
-        quantity: { $gt: 0 } // Only recommend products in stock
+        quantity: { $gt: 0 }
       }).limit(limit);
 
       return recommendedProducts;
@@ -59,7 +113,7 @@ class RecommendationService {
         type: 'PRODUCT_RECOMMENDATIONS',
         userId: userId,
         timestamp: new Date().toISOString(),
-        recommendations: products.map((product: { _id: any; name: any; price: any; category: any; }) => ({
+        recommendations: products.map(product => ({
           productId: product._id,
           name: product.name,
           price: product.price,
@@ -68,7 +122,7 @@ class RecommendationService {
       };
 
       await producer.send({
-        topic: 'notifications',
+        topic: 'recommendation-event',
         messages: [
           {
             key: userId.toString(),
@@ -85,6 +139,9 @@ class RecommendationService {
   // Main method to generate and send recommendations
   async processUserRecommendations(userId: any) {
     try {
+      // 0. Sync latest orders
+      await this.syncOrders();
+
       // 1. Analyze user's purchase history
       const topCategory = await this.analyzeUserPurchases(userId);
       
@@ -112,15 +169,4 @@ class RecommendationService {
   }
 }
 
-// API endpoint handler example
-async function handleRecommendationRequest(req: { params: { userId: any; }; }, res: { status: (arg0: number) => { (): any; new(): any; json: { (arg0: { message?: string; error?: string; }): void; new(): any; }; }; }) {
-  try {
-    const recommendationService = new RecommendationService();
-    await recommendationService.processUserRecommendations(req.params.userId);
-    res.status(200).json({ message: 'Recommendations processed successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to process recommendations' });
-  }
-}
-
-export { RecommendationService, handleRecommendationRequest };
+export { RecommendationService };

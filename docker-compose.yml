@@ -165,6 +165,9 @@ services:
       MONGO_URI: mongodb://username:password@recommendations-db:27017/recommendations-service?authSource=admin
       USERS_SERVICE_URL: 'http://users-service:8000'
       PRODUCTS_SERVICE_URL: 'http://products-service:8000'
+      ORDER_SERVICE_URL: 'http://orders-service:8000'
+
+      
     ports:
 
       - 8005:8000
