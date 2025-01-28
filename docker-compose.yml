@@ -146,7 +146,7 @@ services:
       SMTP_USER: 'rushabhkhatri748@gmail.com'
       SMTP_PASS: 'bxsd qvhc nxeb mrpm'
       SENDER_EMAIL: 'rushabhmistry16@gmail.com'
-      USERS_SERVICE_URL: 'http://users-service:8000'
+      USERS_SERVICE_URL: http://users-service:8000
     ports:
       - 8004:8000
     depends_on:
@@ -162,10 +162,10 @@ services:
     environment:
       RECOMMENDATIONS_SERVICE_PORT: 8000
       KAFKA_BROKERS: kafka:9092
-      MONGO_URI: mongodb://username:password@recommendations-db:27017/recommendations-service?authSource=admin
-      USERS_SERVICE_URL: 'http://users-service:8000'
-      PRODUCTS_SERVICE_URL: 'http://products-service:8000'
-      ORDER_SERVICE_URL: 'http://orders-service:8000'
+      USERS_SERVICE_URL: http://users-service:8000
+      PRODUCTS_SERVICE_URL: http://products-service:8000
+      ORDERS_SERVICE_URL: http://orders-service:8000
+      REDIS_URL: redis://cache-db:6379
 
       
     ports:

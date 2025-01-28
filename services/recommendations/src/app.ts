@@ -1,172 +1,208 @@
 import axios from 'axios';
+import { RedisClientType } from 'redis';
 import { producer } from './kafka';
-import { User, Product, Order } from './models';
 
-class RecommendationService {
-  private orderServiceUrl: string;
+export class app {
+  constructor(private redisClient: RedisClientType<any>) {}
 
-  constructor() {
-    this.orderServiceUrl = process.env.ORDER_SERVICE_URL || '';
-  }
-
-  // Fetch orders from external service and store them
-  async syncOrders() {
+  async processAllOrders() {
     try {
-      const response = await axios.get(this.orderServiceUrl);
-      const orders = response.data;
+      const ordersServiceUrl = process.env.ORDERS_SERVICE_URL || '';
+      const response = await axios.get(`${ordersServiceUrl}`);
+      const data = response.data;
+      console.log('Orders:', data);
 
-      for (const order of orders) {
-        await Order.findOneAndUpdate(
-          { orderId: order._id },
-          { 
-            userId: order.userId,
-            products: order.products.map((p: any) => ({
-              productId: p._id,
-              quantity: p.quantity,
-              name: p.name,
-              category: p.category,
-              price: p.price
-            }))
-          },
-          { upsert: true, new: true }
-        );
-
-        // Update user's purchase history
-        await User.findByIdAndUpdate(
-          order.userId,
-          {
-            $push: {
-              purchaseHistory: {
-                $each: order.products.map((p: any) => ({
-                  productId: p._id,
-                  category: p.category,
-                  quantity: p.quantity,
-                  price: p.price,
-                  date: order.date
-                }))
-              }
-            }
-          }
-        );
+      let orders: any[] = [];
+      if (Array.isArray(data)) {
+        orders = data;
+      } else if (Array.isArray(data.orders)) {
+        orders = data.orders;
+      } else if (Array.isArray(data.result)) {
+        orders = data.result;
+      } else {
+        console.error('Unexpected orders data format:', data);
+        orders = [];
       }
 
-      return orders.length;
-    } catch (error) {
-      console.error('Error syncing orders:', error);
-      throw error;
-    }
-  }
-
-  // Get user's purchase history and analyze categories
-  async analyzeUserPurchases(userId: any) {
-    try {
-      const user = await User.findById(userId);
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      // Group purchases by category and count occurrences
-      const categoryCount = user.purchaseHistory.reduce((acc: { [key: string]: number }, purchase) => {
-        acc[purchase.category] = (acc[purchase.category] || 0) + purchase.quantity;
-        return acc;
-      }, {});
-
-      // Find the most purchased category
-      const mostOrderedCategory = Object.entries(categoryCount)
-        .sort(([, a], [, b]) => b - a)[0]?.[0];
-
-      return mostOrderedCategory;
-    } catch (error) {
-      console.error('Error analyzing user purchases:', error);
-      throw error;
-    }
-  }
-
-  // Find recommended products from the most ordered category
-  async getRecommendedProducts(category: string, userId: any, limit = 3) {
-    try {
-      // Get user's already purchased products
-      const user = await User.findById(userId);
-      if (!user) {
-        throw new Error('User not found');
-      }
-      const purchasedProductIds = user.purchaseHistory.map(p => p.productId);
-
-      // Find products from the same category that user hasn't bought yet
-      const recommendedProducts = await Product.find({
-        category: category,
-        _id: { $nin: purchasedProductIds },
-        quantity: { $gt: 0 }
-      }).limit(limit);
-
-      return recommendedProducts;
-    } catch (error) {
-      console.error('Error getting recommended products:', error);
-      throw error;
-    }
-  }
-
-  // Send recommendation event to Kafka
-  async sendRecommendationEvent(userId: { toString: () => any; }, products: any[]) {
-    try {
-      const event = {
-        type: 'PRODUCT_RECOMMENDATIONS',
-        userId: userId,
-        timestamp: new Date().toISOString(),
-        recommendations: products.map(product => ({
-          productId: product._id,
-          name: product.name,
-          price: product.price,
-          category: product.category
-        }))
-      };
-
-      await producer.send({
-        topic: 'recommendation-event',
-        messages: [
-          {
-            key: userId.toString(),
-            value: JSON.stringify(event)
-          }
-        ]
-      });
-    } catch (error) {
-      console.error('Error sending recommendation event:', error);
-      throw error;
-    }
-  }
-
-  // Main method to generate and send recommendations
-  async processUserRecommendations(userId: any) {
-    try {
-      // 0. Sync latest orders
-      await this.syncOrders();
-
-      // 1. Analyze user's purchase history
-      const topCategory = await this.analyzeUserPurchases(userId);
-      
-      if (!topCategory) {
-        console.log(`No purchase history found for user ${userId}`);
+      if (orders.length === 0) {
+        console.log('No orders found to process.');
         return;
       }
 
-      // 2. Get recommended products
-      const recommendedProducts = await this.getRecommendedProducts(topCategory, userId);
-      
+      console.log(`Processing ${orders.length} orders...`);
+
+      for (const orderData of orders) {
+        await this.updateLocalOrderData(orderData);
+        await this.updateUserPurchaseHistory(orderData);
+      }
+
+      const userIds = [...new Set(orders.map((order: any) => order.userId))];
+      for (const userId of userIds) {
+        await this.generateAndSendRecommendations(userId);
+      }
+
+      console.log('Daily order processing completed.');
+    } catch (error) {
+      console.error('Error fetching or processing orders:', error);
+      throw error;
+    }
+  }
+
+  private async updateLocalOrderData(orderData: any) {
+    try {
+      const orderId = orderData._id || orderData.orderId;
+      const orderKey = `order:${orderId}`;
+
+      const orderDataToStore = {
+        userId: orderData.userId,
+        orderId: orderId,
+        products: JSON.stringify(
+          orderData.products.map((product: any) => ({
+            productId: product._id || product.productId,
+            quantity: product.quantity,
+            name: product.name,
+            category: product.category || 'Unknown',
+            price: product.price || 0,
+          }))
+        ),
+        date: new Date(orderData.createdAt || Date.now()).toISOString(),
+      };
+
+      await this.redisClient.hSet(orderKey, orderDataToStore);
+      console.log(`Order ${orderId} synchronized for user ${orderData.userId}`);
+    } catch (error) {
+      console.error(`Error updating local order data for order ${orderData.orderId}:`, error);
+      throw error;
+    }
+  }
+
+  private async updateUserPurchaseHistory(orderData: any) {
+    try {
+      const userPurchaseHistoryKey = `user:${orderData.userId}:purchaseHistory`;
+
+      for (const product of orderData.products) {
+        let category = product.category;
+
+        if (!category || category === 'Unknown') {
+          const productsServiceUrl = process.env.PRODUCTS_SERVICE_URL || '';
+          const productId = product._id || product.productId;
+
+          try {
+            const productResponse = await axios.get(`${productsServiceUrl}/id/${productId}`);
+            const productData = productResponse.data;
+            category = productData.category || 'Unknown';
+          } catch (err) {
+            console.error(`Error fetching product data for product ${productId}:`, err);
+            category = 'Unknown';
+          }
+        }
+
+        const purchaseRecord = JSON.stringify({
+          productId: product._id || product.productId,
+          category: category,
+          quantity: product.quantity,
+          price: product.price || 0,
+          name: product.name,
+          date: new Date(orderData.createdAt || Date.now()).toISOString(),
+        });
+        await this.redisClient.rPush(userPurchaseHistoryKey, purchaseRecord);
+      }
+
+      console.log(`Purchase history updated for user ${orderData.userId}`);
+    } catch (error) {
+      console.error(`Error updating purchase history for user ${orderData.userId}:`, error);
+      throw error;
+    }
+  }
+
+  private async generateAndSendRecommendations(userId: string) {
+    try {
+      const userPurchaseHistoryKey = `user:${userId}:purchaseHistory`;
+      const purchaseHistoryItems = await this.redisClient.lRange(userPurchaseHistoryKey, 0, -1);
+
+      if (!purchaseHistoryItems?.length) {
+        console.log(`No purchase history for user ${userId}; skipping recommendations.`);
+        return;
+      }
+
+      const purchaseHistory = purchaseHistoryItems.map((item) => JSON.parse(item));
+      const categoryCount = purchaseHistory.reduce(
+        (acc: { [key: string]: number }, purchase) => {
+          const category = purchase.category;
+          if (category && category !== 'Unknown') {
+            acc[category] = (acc[category] || 0) + purchase.quantity;
+          }
+          return acc;
+        },
+        {}
+      );
+
+      const topCategory = Object.entries(categoryCount).sort(([, a], [, b]) => b - a)[0]?.[0];
+
+      if (!topCategory) {
+        console.log(`No top category found for user ${userId}; skipping recommendations.`);
+        return;
+      }
+
+      const productsServiceUrl = process.env.PRODUCTS_SERVICE_URL || '';
+      const response = await axios.get(`${productsServiceUrl}/category`, {
+        params: { category: topCategory },
+      });
+      const allProductsInCategory = response.data || [];
+
+      const purchasedProductIds = new Set(purchaseHistory.map((p) => p.productId));
+      const recommendedProducts = allProductsInCategory
+        .filter(
+          (product: any) =>
+            !purchasedProductIds.has(product._id || product.productId) && product.quantity > 0
+        )
+        .slice(0, 3);
+
       if (recommendedProducts.length === 0) {
         console.log(`No recommendations available for user ${userId} in category ${topCategory}`);
         return;
       }
 
-      // 3. Send recommendations to notification service via Kafka
       await this.sendRecommendationEvent(userId, recommendedProducts);
-      
-      console.log(`Recommendations sent for user ${userId} based on category ${topCategory}`);
+
+      console.log(`Recommendations sent for user ${userId}`, {
+        category: topCategory,
+        recommendationsCount: recommendedProducts.length,
+      });
     } catch (error) {
-      console.error('Error processing recommendations:', error);
+      console.error(`Error generating recommendations for user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  private async sendRecommendationEvent(userId: string, products: any[]) {
+    try {
+      const event = {
+        type: 'PRODUCT_RECOMMENDATIONS',
+        userId: userId,
+        timestamp: new Date().toISOString(),
+        recommendations: products.map((product) => ({
+          productId: product._id || product.productId,
+          name: product.name,
+          price: product.price,
+          category: product.category,
+        })),
+      };
+
+      await producer.send({
+        topic: 'recommendation-events',
+        messages: [
+          {
+            key: userId,
+            value: JSON.stringify(event),
+          },
+        ],
+      });
+
+      console.log('Recommendation event sent successfully', { userId });
+    } catch (error) {
+      console.error('Error sending recommendation event:', error);
       throw error;
     }
   }
 }
-
-export { RecommendationService };

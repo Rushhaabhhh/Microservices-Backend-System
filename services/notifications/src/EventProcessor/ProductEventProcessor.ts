@@ -47,7 +47,7 @@ export class ProductEventProcessor {
   }
 
   private initializeCronJob() {
-    cron.schedule("* * * * *", async () => {
+    cron.schedule("0 * * * *", async () => {
       console.log("[ProductEventProcessor] Starting scheduled notification process");
       try {
         await this.sendRandomUserNotifications();

@@ -52,7 +52,10 @@ const NotificationSchema = new Schema(
     metadata: {
       type: Schema.Types.Mixed,
       default: {}
-    }
+    },
+    emailSent: { type: Boolean, default: false },
+    lastEmailAttempt: Date,
+    emailError: String
   },
   { 
     timestamps: true,

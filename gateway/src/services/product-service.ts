@@ -37,7 +37,7 @@ const ProductService = {
   // Fetch a product by ID
   async getById({ id }: { id: string }) {
     try {
-      const response = await client.get(`/${id}`);
+      const response = await client.get(`/id/${id}`);
       return response.data.result;
     } catch (error) {
       console.error(`Error fetching product with ID ${id}:`, (error as any).message);
