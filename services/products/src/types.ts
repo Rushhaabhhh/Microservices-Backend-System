@@ -8,6 +8,7 @@ export type OrderEventPayload = {
     products: {
       _id: string;
       quantity: number;
+      category: string;
     }[];
   };
 };

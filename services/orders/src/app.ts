@@ -88,6 +88,7 @@ app.post(
 
           if (product.result.quantity < quantity) {
             res.status(400).send("Insufficient product quantity");
+            product.result.quantity = product.result.quantity - quantity;
             return;
           }
         } catch (e) {

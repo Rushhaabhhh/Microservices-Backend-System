@@ -7,12 +7,14 @@ const productTypeDefs = buildSchema(`
     name: String!
     price: Float!
     quantity: Int!
+    category: String!
   } 
 
   input CreateProductInput {
     name: String!
     price: Float!
     quantity: Int!
+    category: String!
   }
 
   type Query {

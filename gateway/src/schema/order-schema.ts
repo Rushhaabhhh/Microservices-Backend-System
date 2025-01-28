@@ -6,6 +6,8 @@ const orderTypeDefs = buildSchema(`
     _id: ID!
     quantity: Int!
     name: String
+    category: String
+    price: Float
   }
 
   type Order {

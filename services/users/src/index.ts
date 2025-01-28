@@ -50,4 +50,4 @@ main().then(() => {
 // Start the metrics server
 metricsApp.listen(METRICS_PORT, () => {
     console.log(`Metrics available at http://localhost:${METRICS_PORT}/metrics`);
-  });
+});

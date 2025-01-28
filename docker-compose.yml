@@ -49,6 +49,16 @@ services:
     networks:
       - backend
 
+  recommendations-db:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: username
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: recommendations-service
+    ports:
+      - 27021:27017
+    networks:
+      - backend
   
 
   kafka:
@@ -137,11 +147,29 @@ services:
       SMTP_PASS: 'bxsd qvhc nxeb mrpm'
       SENDER_EMAIL: 'rushabhmistry16@gmail.com'
       USERS_SERVICE_URL: 'http://users-service:8000'
-
     ports:
       - 8004:8000
     depends_on:
       - notifications-db
+      - kafka
+    networks:
+      - backend
+
+  recommendations-service:
+    build:
+      context: ./services/recommendations
+      dockerfile: Dockerfile
+    environment:
+      RECOMMENDATIONS_SERVICE_PORT: 8000
+      KAFKA_BROKERS: kafka:9092
+      MONGO_URI: mongodb://username:password@recommendations-db:27017/recommendations-service?authSource=admin
+      USERS_SERVICE_URL: 'http://users-service:8000'
+      PRODUCTS_SERVICE_URL: 'http://products-service:8000'
+    ports:
+
+      - 8005:8000
+    depends_on:
+      - recommendations-db
       - kafka
     networks:
       - backend
