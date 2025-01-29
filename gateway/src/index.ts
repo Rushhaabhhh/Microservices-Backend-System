@@ -3,8 +3,6 @@ import { config } from "dotenv";
 import client from 'prom-client';
 
 import app from "./app";
-import { consumer } from "./library/kafka";
-import { cacheClient } from "./library/redis";
 
 config();
 const METRICS_PORT = process.env.METRICS_PORT;
@@ -24,19 +22,24 @@ metricsApp.get('/metrics', async (req, res) => {
   res.end(await register.metrics());
 });
 
+import { consumer } from "./library/kafka";
+import { cacheClient } from "./library/redis";
+
+const PORT = parseInt(process.env.PORT || '4000', 10);
 
 const main = async () => {
-  await cacheClient.connect();
-  await consumer.connect();
-  await consumer.subscribe({ topic: "inventory-events" });
-  await consumer.run({
-    eachMessage: async ({ topic, partition }) => {
-      console.log(`[TOPIC]: [${topic}] | PART: ${partition}`);
-      await cacheClient.del("products/");
-    },
-  });
-  app.listen(4000);
-  console.log("Running a GraphQL API server at http://localhost:4000/graphql");
+    await cacheClient.connect();
+    await consumer.connect();
+    await consumer.subscribe({ topic: "inventory-events" });
+    await consumer.run({
+        eachMessage: async ({ topic, partition }) => {
+            console.log(`[TOPIC]: [${topic}] | PART: ${partition}`);
+            await cacheClient.del("products/");
+        },
+    });
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Running a GraphQL API server at http://localhost:${PORT}/graphql`);
+    });
 };
 
 main().catch(async (e) => {

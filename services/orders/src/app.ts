@@ -79,16 +79,35 @@ app.post(
         return;
       }
 
-      // Validate product availability
+      // Validate product availability and collect product details
+      const enrichedProducts = [];
       for (const { _id, quantity } of req.body.products) {
         try {
-          const product = (
-            await axios.get(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`)
-          ).data as { result: { _id: string; quantity: number } };
+          const response = await axios.get(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`);
+          const product = response.data.result;
 
-          if (product.result.quantity < quantity) {
+          if (product.quantity < quantity) {
             res.status(400).send("Insufficient product quantity");
-            product.result.quantity = product.result.quantity - quantity;
+            return;
+          }
+
+          // Add all product details to the order
+          enrichedProducts.push({
+            _id: product._id,
+            quantity: quantity,
+            name: product.name,
+            category: product.category,
+            price: product.price
+          });
+
+          // Update product quantity
+          try {
+            await axios.patch(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`, {
+              quantity: product.quantity - quantity
+            });
+          } catch (e) {
+            console.error('Failed to update product quantity:', e);
+            res.status(500).send("Failed to update product quantity");
             return;
           }
         } catch (e) {
@@ -97,8 +116,11 @@ app.post(
         }
       }
 
-      // Create order
-      const order = await Order.create({ products: req.body.products, userId });
+      // Create order with enriched product details
+      const order = await Order.create({ 
+        products: enrichedProducts, 
+        userId 
+      });
 
       // Publish an order-placed event to Kafka
       await producer.send({
@@ -107,7 +129,8 @@ app.post(
           { value: JSON.stringify({
             userId: order.userId, 
             orderId: order._id,
-            eventType: 'order-placed'
+            eventType: 'order-placed',
+            products: enrichedProducts
           }) 
         }],
       });

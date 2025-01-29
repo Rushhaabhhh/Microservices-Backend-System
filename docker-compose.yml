@@ -49,16 +49,6 @@ services:
     networks:
       - backend
 
-  recommendations-db:
-    image: mongo
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: recommendations-service
-    ports:
-      - 27021:27017
-    networks:
-      - backend
   
 
   kafka:
@@ -89,9 +79,10 @@ services:
       API_SECRET: secret
       KAFKA_BROKERS: kafka:9092
       MONGO_URI: mongodb://username:password@users-db:27017/users-service?authSource=admin
-      USERS_SERVICE_PORT: 8000
+      USERS_SERVICE_PORT: "8000"
     ports:
-      - 8001:8000
+      - "8001:8000"
+    
     depends_on:
       - users-db
       - kafka
@@ -146,7 +137,8 @@ services:
       SMTP_USER: 'rushabhkhatri748@gmail.com'
       SMTP_PASS: 'bxsd qvhc nxeb mrpm'
       SENDER_EMAIL: 'rushabhmistry16@gmail.com'
-      USERS_SERVICE_URL: http://users-service:8000
+      USERS_SERVICE_URL: 'http://users-service:8000'
+
     ports:
       - 8004:8000
     depends_on:
@@ -169,10 +161,12 @@ services:
 
       
     ports:
-
       - 8005:8000
     depends_on:
-      - recommendations-db
+      - cache-db
+      - users-service
+      - products-service
+      - orders-service
       - kafka
     networks:
       - backend
@@ -189,8 +183,9 @@ services:
       PRODUCTS_SERVICE_URL: http://products-service:8000
       REDIS_URL: redis://cache-db:6379
       KAFKA_BROKERS: kafka:9092
+      PORT: "4000"
     ports:
-      - 4000:4000
+      - "4000:4000"
     depends_on:
       - users-service
       - orders-service

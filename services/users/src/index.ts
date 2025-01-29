@@ -37,9 +37,11 @@ const main = async () => {
     await producer.connect();
 }
 
+const PORT = parseInt(process.env.USERS_SERVICE_PORT || '8000', 10); 
+
 main().then(() => {
-    app.listen(process.env['USER_SERVICE_PORT'], () => {
-        console.log(`Server is running on port ${process.env['USER_SERVICE_PORT']}`);
+    app.listen(PORT, '0.0.0.0', () => { // Add '0.0.0.0' to bind to all interfaces
+        console.log(`Server is running on port ${PORT}`);
     });
 }).catch(async (err) => {
     console.error(err);

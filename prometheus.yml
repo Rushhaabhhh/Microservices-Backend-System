@@ -22,9 +22,9 @@ scrape_configs:
     static_configs:
       - targets: ['order_service:9203']
 
-  # - job_name: 'notification-service'
-  #   static_configs:
-  #     - targets: ['notification_service:9204']
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification_service:9204']
 
   - job_name: 'recommendation-service'
     static_configs:
