@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "USERS_SERVICE_URL=http://localhost:3001 ORDERS_SERVICE_URL=http://localhost:3002 PRODUCTS_SERVICE_URL=http://localhost:3003 jest --coverage",
     "start": "ts-node src/index.ts"
   },
   "license": "MIT",

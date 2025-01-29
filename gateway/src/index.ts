@@ -3,6 +3,8 @@ import { config } from "dotenv";
 import client from 'prom-client';
 
 import app from "./app";
+import { consumer } from "./library/kafka";
+import { cacheClient } from "./library/redis";
 
 config();
 const METRICS_PORT = process.env.METRICS_PORT;
@@ -22,8 +24,6 @@ metricsApp.get('/metrics', async (req, res) => {
   res.end(await register.metrics());
 });
 
-import { consumer } from "./library/kafka";
-import { cacheClient } from "./library/redis";
 
 const main = async () => {
   await cacheClient.connect();
