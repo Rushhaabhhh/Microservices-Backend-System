@@ -60,58 +60,30 @@ export class RecommendationEventProcessor {
   private async sendEmailNotification(notification: any): Promise<void> {
     try {
       if (notification.emailSent) return;
-
+  
       let userEmail = notification.email;
       if (!userEmail) {
+        console.log("🔍 Fetching email for user:", notification.userId);
         userEmail = await this.getUserEmail(notification.userId);
-        if (!userEmail) {
-          throw new Error(`No email found for user ${notification.userId}`);
-        }
-        notification.email = userEmail;
       }
-
-      // Validate the email format before sending
-      if (!this.validateEmailFormat(userEmail)) {
-        throw new Error(`Invalid email format for user ${notification.userId}: ${userEmail}`);
+  
+      if (!userEmail) {
+        throw new Error(`❌ No email found for user ${notification.userId}`);
       }
-
-      const emailContent = this.formatRecommendationEmail(notification.content.recommendations);
-
-      console.log(`Attempting to send email to ${userEmail}`, {
-        notificationId: notification._id,
-        userId: notification.userId
-      });
-
-      await sendEmail(
-        userEmail,
-        "Your Personalized Product Recommendations",
-        NotificationType.RECOMMENDATION,
-        emailContent
-      );
-
+  
+      console.log("📨 Sending email to:", userEmail);
+      await sendEmail(userEmail, "Your Personalized Product Recommendations", NotificationType.RECOMMENDATION, notification.content);
+  
+      console.log(`✅ Email sent successfully to ${userEmail}`);
       notification.emailSent = true;
       notification.sentAt = new Date();
-      notification.lastEmailAttempt = new Date();
       await notification.save();
-
-      console.log(`Email sent successfully to ${userEmail}`, {
-        notificationId: notification._id,
-        userId: notification.userId
-      });
     } catch (error) {
-      console.error('Failed to send email notification:', {
-        notificationId: notification._id,
-        userId: notification.userId,
-        error: (error as Error).message
-      });
-
-      notification.lastEmailAttempt = new Date();
-      notification.emailError = (error as Error).message;
-      await notification.save();
-
+      console.error("❌ Failed to send email:", error);
       throw error;
     }
   }
+  
   private validateEmailFormat(email: string): boolean {
     // Simple email regex validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -234,7 +206,7 @@ export class RecommendationEventProcessor {
   private async getUserEmail(userId: string): Promise<string | null> {
     try {
       const response = await axios.get(
-        `${this.usersServiceUrl}/users/${userId}`,
+        `${this.usersServiceUrl}/${userId}`,
         { timeout: 5000 }
       );
       return response.data?.result?.email || null;
