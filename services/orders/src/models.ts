@@ -15,6 +15,15 @@ const OrderSchema = new Schema({
             type: Number, 
             required: true 
         },
+        name: { 
+            type: String 
+        },
+        category: { 
+            type: String 
+        },
+        price: { 
+            type: Number 
+        },
     }],
 });
 

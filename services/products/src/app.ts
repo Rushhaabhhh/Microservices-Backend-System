@@ -132,4 +132,67 @@ app.get(
   }
 );
 
+app.patch(
+  '/:id',
+  validateRequestBody({
+    parse: (body: any) => {
+      const { name, price, quantity, category } = body;
+
+      const update: Record<string, any> = {};
+
+      if (name) {
+        if (typeof name !== 'string' || name.trim() === '') {
+          throw new Error('Product name must be a non-empty string');
+        }
+        update.name = name.trim();
+      }
+
+      if (price) {
+        if (typeof price !== 'number' || price <= 0) {
+          throw new Error('Price must be a positive number');
+        }
+        update.price = price;
+      }
+
+      if (quantity) {
+        if (!Number.isInteger(quantity) || quantity < 0) {
+          throw new Error('Quantity must be a non-negative integer');
+        }
+        update.quantity = quantity;
+      }
+
+      if (category) {
+        if (typeof category !== 'string' || category.trim() === '') {
+          throw new Error('Category must be a non-empty string');
+        }
+        update.category = category.trim();
+      }
+
+      return update;
+    },
+  }),
+  async (req, res): Promise<void> => {
+    try {
+      const { id } = req.params;
+
+      // Validate the ID manually
+      if (!isValidObjectId(id)) {
+        res.status(400).json({ error: 'Invalid product ID' });
+        return;
+      }
+
+      const product = await Product.findByIdAndUpdate(id, req.body, { new: true });
+
+      if (!product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+
+      res.json({ result: product });
+    } catch (err) {
+      res.status(500).json({ error: 'Unexpected error occurred' });
+    }
+  }
+
+)
 export default app;

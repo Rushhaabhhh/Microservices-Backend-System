@@ -1,1 +1,3 @@
-export type Context = { headers: Record<string, string> };
+export type Context = {
+  req: any; headers: Record<string, string> 
+};

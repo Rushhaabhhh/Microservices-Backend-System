@@ -8,87 +8,95 @@ const client = Axios.create({
   baseURL: process.env["ORDERS_SERVICE_URL"],
 });
 
+interface OrderProductInput {
+  _id: string;
+  quantity: number;
+}
+
+interface Order {
+  _id: string;
+  userId: string;
+  products: Array<{
+    _id: string;
+    quantity: number;
+    name?: string;
+    category?: string;
+    price?: number;
+  }>;
+}
+
 const OrderService = {
   async getAll() {
     try {
-      const response = await client.get("/");
+      const response = await client.get<{ result: Order[] }>("/");
       
-      // Add name to products if missing
-      const ordersWithProductNames = response.data.result.map((order: { products: any[]; }) => ({
+      return response.data.result.map(order => ({
         ...order,
-        products: order.products.map((product: { name: any; _id: any; }) => ({
+        products: order.products.map(product => ({
           ...product,
           name: product.name || `Product ${product._id}`
         }))
       }));
- 
-      return ordersWithProductNames;
     } catch (error) {
-      console.error("Error fetching all orders:", (error as any));
+      console.error("Error fetching all orders:", error);
       throw new Error("Unable to fetch orders.");
     }
   },
  
   async getById({ id }: { id: string }) {
     try {
-      const response = await client.get(`/${id}`);
+      const response = await client.get<{ result: Order }>(`/${id}`);
       
-      // Add name to products if missing
-      const orderWithProductNames = {
+      return {
         ...response.data.result,
-        products: response.data.result.products.map((product: { name: any; _id: any; }) => ({
+        products: response.data.result.products.map(product => ({
           ...product,
           name: product.name || `Product ${product._id}`
         }))
       };
- 
-      return orderWithProductNames;
     } catch (error) {
-      console.error(`Error fetching order with ID ${id}:`, (error as any).message);
+      console.error(`Error fetching order with ID ${id}:`, error);
       throw new Error(`Unable to fetch order with ID: ${id}`);
     }
   },
 
-  // Create a new order
-  async post({ products }: { products: any }, context: Context) {
+  async post({ products }: { products: OrderProductInput[] }, context: Context) {
     try {
       const authorization = context.headers["authorization"];
-      if (!authorization) throw new Error("Authorization header is missing.");
-
-      // Extract and verify the token
+      if (!authorization) throw new Error("Authorization header is missing");
+  
       const token = authorization.split("Bearer ")[1];
-      if (!token) throw new Error("Invalid authorization token.");
-
+      if (!token) throw new Error("Invalid authorization token");
+  
       const secret = process.env.API_SECRET;
-      if (!secret) throw new Error("API secret is missing.");
-      const payload = verify(token, secret) as unknown as { userId: string };
+      if (!secret) throw new Error("API secret is missing");
+  
+      const payload = verify(token, secret) as { userId: string };
       const userId = payload.userId;
-
-      const response = await client.post(
+  
+      const response = await client.post<{ result: Order }>(
         `/`,
         { products },
         { headers: { "x-user-id": userId } }
       );
-
-      // Check if 'data.result' exists
-      if (!response.data || !response.data.result) {
-        throw new Error("Unexpected response structure: Missing 'data.result'");
+  
+      if (!response.data?.result) {
+        throw new Error("Invalid response structure: Missing result");
       }
-
+  
       return response.data.result;
-    } catch (error) {
-      console.error("Error creating order:", (error as any).message);
-      throw new Error((error as any).response?.data?.message || "Unable to create order.");
+    } catch (error: any) {
+      console.error("Order creation failed:", error);
+      throw new Error(error.response?.data?.message || "Unable to create order");
     }
   },
 
-  // Update an order by ID
-  async update({ id, input }: { id: string; input: any }) {
+  async update({ id, input }: { id: string; input: Partial<Order> }) {
     try {
-      const response = await client.put(`/${id}`, input);
+      const response = await client.put<{ result: Order }>(`/${id}`, input);
       return response.data.result;
     } catch (error) {
-      console.error(`Error updating order with ID ${id}:`, (error as any).message);
+      console.error(`Error updating order with ID ${id}:`, error);
       throw new Error(`Unable to update order with ID: ${id}`);
     }
   },

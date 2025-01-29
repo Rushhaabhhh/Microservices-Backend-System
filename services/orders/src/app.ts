@@ -25,6 +25,11 @@ const orderIdParamSchema = z.object({
   id: z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid order ID"),
 });
 
+interface OrderProductInput {
+  _id: string;
+  quantity: number;
+}
+
 // Middleware for validating request bodies
 const validateRequestBody =
   (schema: z.ZodTypeAny) =>
@@ -58,93 +63,116 @@ const validateRequestParams =
   };
 
 // Create a new order
-app.post(
-  "/",
-  validateRequestBody(orderCreationSchema),
-  async (req, res) => {
+
+app.post("/", validateRequestBody(orderCreationSchema), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) {
+      res.status(401).json({
+        code: "UNAUTHORIZED",
+        message: "User authentication required"
+      });
+      return;
+    }
+
+    // Validate user
     try {
-      const userId = req.headers["x-user-id"];
+      await axios.get(`${process.env.USERS_SERVICE_URL}/${userId}`);
+    } catch (e) {
+      console.error('User validation failed:', e);
+      res.status(401).json({
+        code: "INVALID_USER",
+        message: "User not found or invalid"
+      });
+      return;
+    }
 
-      // Validate user
-      if (!userId) {
-        res.status(401).send("Unauthorized");
-        return;
-      }
-
-      try {
-        await axios.get(`${process.env.USERS_SERVICE_URL}/${userId}`);
-      } catch (e) {
-        console.error(e);
-        res.status(401).send("Unauthorized");
-        return;
-      }
-
-      // Validate product availability and collect product details
-      const enrichedProducts = [];
-      for (const { _id, quantity } of req.body.products) {
+    // Validate and enrich products
+    const enrichedProducts = await Promise.all(
+      req.body.products.map(async ({ _id, quantity }: OrderProductInput) => {
         try {
-          const response = await axios.get(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`);
+          const response = await axios.get(`${process.env.PRODUCTS_SERVICE_URL}/id/${_id}`);
+
+          console.log('Product API response:', response.data);
+
           const product = response.data.result;
 
-          if (product.quantity < quantity) {
-            res.status(400).send("Insufficient product quantity");
-            return;
+          if (!product || !product.name || !product.category || !product.price) {
+            throw {
+              status: 400,
+              code: "PRODUCT_DATA_INCOMPLETE",
+              message: `Product ${_id} has missing details`,
+              details: { productId: _id, receivedData: product }
+            };
           }
 
-          // Add all product details to the order
-          enrichedProducts.push({
+          if (product.quantity < quantity) {
+            throw {
+              status: 400,
+              code: "INSUFFICIENT_QUANTITY",
+              message: `Insufficient quantity for product ${_id}`,
+              details: {
+                productId: _id,
+                requested: quantity,
+                available: product.quantity
+              }
+            };
+          }
+
+          await axios.patch(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`, {
+            quantity: product.quantity - quantity
+          });
+
+          return {
             _id: product._id,
-            quantity: quantity,
+            quantity,
             name: product.name,
             category: product.category,
             price: product.price
-          });
-
-          // Update product quantity
-          try {
-            await axios.patch(`${process.env.PRODUCTS_SERVICE_URL}/${_id}`, {
-              quantity: product.quantity - quantity
-            });
-          } catch (e) {
-            console.error('Failed to update product quantity:', e);
-            res.status(500).send("Failed to update product quantity");
-            return;
-          }
-        } catch (e) {
-          res.status(400).send(`Product ${_id} not found`);
-          return;
+          };
+        } catch (error: any) {
+          if (error.code) throw error;
+          throw {
+            status: 400,
+            code: "PRODUCT_NOT_FOUND",
+            message: `Product ${_id} not found`,
+            details: { productId: _id }
+          };
         }
-      }
+      })
+    );
 
-      // Create order with enriched product details
-      const order = await Order.create({ 
-        products: enrichedProducts, 
-        userId 
-      });
+    console.log('Enriched products:', enrichedProducts);
 
-      // Publish an order-placed event to Kafka
-      await producer.send({
-        topic: "order-events",
-        messages: [
-          { value: JSON.stringify({
-            userId: order.userId, 
-            orderId: order._id,
-            eventType: 'order-placed',
-            products: enrichedProducts
-          }) 
-        }],
-      });
+    // Create order
+    const order = await Order.create({ 
+      products: enrichedProducts, 
+      userId 
+    });
 
-      res.status(201).json({ result: order });
-    } catch (err) {
-      if (err instanceof Error) {
-        res.status(500).json({ error: err.message });
-      } else {
-        res.status(500).json({ error: "Unexpected error occurred" });
-      }
-    }
+    // Emit event
+    await producer.send({
+      topic: "order-events",
+      messages: [{
+        value: JSON.stringify({
+          userId: order.userId,
+          orderId: order._id,
+          eventType: 'order-placed',
+          products: enrichedProducts
+        })
+      }]
+    });
+
+    res.status(201).json({ result: order });
+  } catch (error: any) {
+    console.error('Order creation failed:', error);
+    res.status(error.status || 500).json({
+      code: error.code || "ORDER_CREATION_FAILED",
+      message: error.message || "Unexpected error occurred",
+      details: error.details || {}
+    });
   }
-);
+});
 
 // Get Order by ID
 app.get(
