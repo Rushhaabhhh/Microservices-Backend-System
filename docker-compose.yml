@@ -136,7 +136,7 @@ services:
       SMTP_SECURE: 'false' 
       SMTP_USER: 'rushabhkhatri748@gmail.com'
       SMTP_PASS: 'bxsd qvhc nxeb mrpm'
-      SENDER_EMAIL: 'rushabhmistry16@gmail.com'
+      SENDER_EMAIL: 'rushabhkhatri748@gmail.com'
       USERS_SERVICE_URL: 'http://users-service:8000'
 
     ports:
