@@ -137,7 +137,7 @@ export class NotificationProcessorService {
                 { topic, partition, offset: message.offset },
               );
             } else if (topic === "recommendation-events") {
-              processingResult = await this.recommendationEventProcessor.processRecommendationEventWithRetry(
+              processingResult = await this.recommendationEventProcessor.processRecommendationEvent(
                 event, 
                 { topic, partition, offset: message.offset },
               );

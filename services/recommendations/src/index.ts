@@ -63,6 +63,18 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
+// Manual trigger endpoint (for testing)
+app.post('/process', async (req, res) => {
+  try {
+    await recommendationService.processOrdersManually();
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
 // Global error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

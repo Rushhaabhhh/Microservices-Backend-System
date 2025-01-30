@@ -3,35 +3,7 @@ import cron from "node-cron";
 import { Notification, NotificationType, NotificationPriority } from "../models";
 import { sendEmail } from "../emailService";
 import { DeadLetterQueueHandler } from "./DeadLetterQueue";
-
-interface User {
-  _id: string;
-  email: string;
-  name: string;
-  preferences?: {
-    promotions?: boolean;
-    orderUpdates?: boolean;
-    recommendations?: boolean;
-  };
-}
-
-interface NotificationPayload {
-  userId: string;
-  email: string;
-  type: NotificationType;
-  content: {
-    message: string;
-    eventType: string;
-    name: string;
-  };
-  priority: NotificationPriority;
-  metadata: {
-    batchId: string;
-    isAutomated: boolean;
-    userPreferences?: Record<string, boolean>;
-    retryCount?: number;
-  };
-}
+import { NotificationPayload, User } from "./types";
 
 export class ProductEventProcessor {
   private deadLetterQueueHandler: DeadLetterQueueHandler;
@@ -42,13 +14,11 @@ export class ProductEventProcessor {
   }
 
   private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
   private initializeCronJob() {
-    cron.schedule("0 * * * *", async () => {
-      console.log("[ProductEventProcessor] Starting scheduled notification process");
+    cron.schedule("* * * * *", async () => {
       try {
         await this.sendRandomUserNotifications();
       } catch (error) {
@@ -63,50 +33,12 @@ export class ProductEventProcessor {
     }
 
     try {
-      console.log(`[ProductEventProcessor] Fetching users from ${process.env.USERS_SERVICE_URL}`);
-      
-      const response = await axios.get(process.env.USERS_SERVICE_URL, {
-        timeout: 5000,
-      });
-
-      console.log("[ProductEventProcessor] Raw API Response:", {
-        status: response.status,
-        dataStructure: JSON.stringify(response.data, null, 2)
-      });
-
-      const allUsers: User[] = (response.data?.result || []).filter((user: User) => {
-        const isValid = this.isValidEmail(user.email);
-        const promotionsEnabled = user.preferences?.promotions !== false;
-
-        console.log(`[ProductEventProcessor] Validating user:`, {
-          email: user.email,
-          isValidEmail: isValid,
-          hasPreferences: !!user.preferences,
-          promotionsEnabled: promotionsEnabled
-        });
-
-        return isValid && promotionsEnabled;
-      });
-
-      if (allUsers.length === 0) {
-        console.log("[ProductEventProcessor] No valid users found for notifications");
-        return [];
-      }
-
-      const randomUsers: User[] = [];
-      const usersCopy = [...allUsers];
-      
-      while (randomUsers.length < Math.min(count, usersCopy.length)) {
-        const randomIndex = Math.floor(Math.random() * usersCopy.length);
-        randomUsers.push(usersCopy[randomIndex]);
-        usersCopy.splice(randomIndex, 1);
-      }
-
-      console.log(`[ProductEventProcessor] Selected ${randomUsers.length} random users for notifications:`, 
-        randomUsers.map(user => ({ email: user.email, name: user.name }))
+      const response = await axios.get(process.env.USERS_SERVICE_URL, { timeout: 5000 });
+      const allUsers: User[] = (response.data?.result || []).filter((user: { email: string; preferences: { promotions: boolean; }; }) => 
+        this.isValidEmail(user.email) && user.preferences?.promotions !== false
       );
-      
-      return randomUsers;
+
+      return allUsers.sort(() => 0.5 - Math.random()).slice(0, count);
     } catch (error) {
       console.error("[ProductEventProcessor] Failed to fetch users:", error);
       throw new Error(`Failed to retrieve users: ${(error as Error).message}`);
@@ -115,14 +47,6 @@ export class ProductEventProcessor {
 
   private async createNotificationForEvent(params: NotificationPayload): Promise<Notification> {
     try {
-      console.log("[ProductEventProcessor] Processing Notification - Input:", {
-        userId: params.userId,
-        email: params.email,
-        type: params.type,
-        priority: params.priority,
-      });
-
-      // Create notification record
       const notification = await Notification.create({
         userId: params.userId,
         email: params.email,
@@ -134,105 +58,54 @@ export class ProductEventProcessor {
         read: false,
       });
 
-      console.log("[ProductEventProcessor] Notification Record Created:", {
-        notificationId: notification._id,
-        userId: params.userId,
-        email: params.email,
-      });
-
-      // Send email notification
       if (params.type === NotificationType.PROMOTION) {
         try {
-          const emailContent = {
-            to: params.email,
-            subject: `Special Promotion for ${params.content.name}`,
-            html: `
-              <h2>Hello ${params.content.name}!</h2>
-              <p>${params.content.message}</p>
-              <p>Thank you for being our valued customer!</p>
-            `
-          };
-
-          console.log("[ProductEventProcessor] Sending email:", {
-            to: params.email,
-            subject: emailContent.subject
-          });
-
           await sendEmail(
             params.userId,
-            emailContent.subject,
+            `🎉 Special Promotion Just for You, ${params.content.name}!`,
             NotificationType.PROMOTION,
-            emailContent.html
+            `
+            <html>
+              <body>
+                <h2>Hey ${params.content.name}, 🎁</h2>
+                <p>${params.content.message}</p>
+                <p>✨ Don't miss out—grab this special offer while it lasts!</p>
+                <p>Best Regards, <br><strong>Your Favorite Store</strong>
+                </p>
+              </body>
+            </html>`
           );
-          console.log("[ProductEventProcessor] Email sent successfully to:", params.email);
         } catch (emailError) {
-          console.error("[ProductEventProcessor] Email Sending Failed:", {
-            userId: params.userId,
-            email: params.email,
-            error: (emailError as Error).message,
-          });
-          
-          // Don't throw here - we want to keep the notification record even if email fails
-          // But we should log it for monitoring
+          console.error("[ProductEventProcessor] Email Sending Failed:", { email: params.email, error: (emailError as Error).message });
         }
       }
-
       return notification as unknown as Notification;
     } catch (error) {
-      console.error("[ProductEventProcessor] Comprehensive Notification Processing Error:", {
-        message: (error as Error).message,
-        stack: (error as Error).stack,
-        params,
-      });
+      console.error("[ProductEventProcessor] Notification Processing Error:", { message: (error as Error).message });
       throw error;
     }
   }
 
   private async sendRandomUserNotifications() {
-    console.log("[ProductEventProcessor] Starting random user notification process");
-    
     try {
       const randomUsers = await this.getRandomUsers(10);
-      
-      if (randomUsers.length === 0) {
-        console.log("[ProductEventProcessor] No valid users available for sending notifications");
-        return;
-      }
+      if (!randomUsers.length) return;
 
       const promotionalContent = {
         message: "Check out our latest promotions! Limited time offers await you.",
         eventType: "PROMOTIONAL_CAMPAIGN",
       };
 
-      let successCount = 0;
-      let failureCount = 0;
-
       for (const user of randomUsers) {
-        try {
-          await this.createNotificationForEvent({
-            userId: user._id,
-            email: user.email,
-            type: NotificationType.PROMOTION,
-            content: {
-              ...promotionalContent,
-              name: user.name
-            },
-            priority: NotificationPriority.STANDARD,
-            metadata: {
-              batchId: `PROMO_${Date.now()}`,
-              isAutomated: true,
-              userPreferences: user.preferences
-            },
-          });
-          successCount++;
-          console.log(`[ProductEventProcessor] Successfully sent notification to ${user.email}`);
-        } catch (error) {
-          failureCount++;
-          console.error(`[ProductEventProcessor] Failed to send notification to ${user.email}:`, error);
-        }
+        await this.createNotificationForEvent({
+          userId: user._id,
+          email: user.email,
+          type: NotificationType.PROMOTION,
+          content: { ...promotionalContent, name: user.name },
+          priority: NotificationPriority.STANDARD,
+          metadata: { batchId: `PROMO_${Date.now()}`, isAutomated: true, userPreferences: user.preferences },
+        });
       }
-
-      console.log(`[ProductEventProcessor] Notification processing complete. Success: ${successCount}, Failed: ${failureCount}`);
     } catch (error) {
       console.error("[ProductEventProcessor] Failed to process random user notifications:", error);
       throw error;
@@ -252,37 +125,18 @@ export class ProductEventProcessor {
         userId: event.userId,
         email: event.email,
         type: NotificationType.PROMOTION,
-        content: {
-          message: event.details?.message || "Promotional event processed",
-          eventType: event.eventType,
-          name: event.details?.name || "Valued Customer"
-        },
+        content: { message: event.details?.message || "Promotional event processed", eventType: event.eventType, name: event.details?.name || "Valued Customer" },
         priority: NotificationPriority.STANDARD,
-        metadata: {
-          batchId: event.metadata?.batchId || `RETRY_${Date.now()}`,
-          isAutomated: true,
-          retryCount
-        },
+        metadata: { batchId: event.metadata?.batchId || `RETRY_${Date.now()}`, isAutomated: true, retryCount },
       });
       return true;
     } catch (error) {
-      console.error(`[ProductEventProcessor] Event Processing Failed (Retry ${retryCount}):`, {
-        error: (error as Error).message,
-        event,
-      });
-
       if (retryCount < MAX_RETRIES) {
-        const backoffDelay = Math.pow(2, retryCount) * BASE_DELAY;
-        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * BASE_DELAY));
         return this.processProductEventWithRetry(event, context, retryCount + 1);
       }
 
-      await this.deadLetterQueueHandler.handleFailedMessage(
-        context.topic,
-        event,
-        error as Error,
-        { partition: context.partition, offset: context.offset }
-      );
+      await this.deadLetterQueueHandler.handleFailedMessage(context.topic, event, error as Error, { partition: context.partition, offset: context.offset });
       return false;
     }
   }
