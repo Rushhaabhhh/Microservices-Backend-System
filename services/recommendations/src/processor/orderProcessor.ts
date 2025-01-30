@@ -1,94 +1,94 @@
 import axios from 'axios';
 import { RedisClientType } from 'redis';
-import { Order, OrdersResponse, ProductResponse } from '../types';
+import { Order, Product } from '../types';
 
 export class OrderProcessor {
   constructor(private redisClient: RedisClientType<any>) {}
 
-  async processAllOrders() {
-    try {
-      const ordersServiceUrl = process.env.ORDERS_SERVICE_URL || '';
-      const response = await axios.get<OrdersResponse>(ordersServiceUrl);
-      const orders: Order[] = response.data.result;
+  async processOrders(orders: Order[]): Promise<string[]> {
+    const userIds = new Set<string>();
 
-      if (!orders.length) return;
-
-      for (const order of orders) {
+    for (const order of orders) {
+      try {
         await this.updateLocalOrderData(order);
         await this.updateUserPurchaseHistory(order);
+        userIds.add(order.userId);
+      } catch (error) {
+        console.error(`Failed to process order ${order._id}:`, error);
       }
-
-      return [...new Set(orders.map(order => order.userId))];
-    } catch (error) {
-      console.error('Error processing orders:', error);
-      throw error;
     }
+
+    return Array.from(userIds);
   }
 
+  // Update the local order data in Redis
   private async updateLocalOrderData(order: Order) {
-    try {
-      const orderKey = `order:${order._id}`;
-      const orderDataToStore = {
-        userId: order.userId,
-        orderId: order._id,
-        products: order.products.map(product => ({
-          productId: product._id,
-          quantity: product.quantity,
-          name: product.name || 'Unknown',
-          category: product.category || 'Unknown',
-          price: product.price || 0,
-        })),
+    const orderKey = `order:${order._id}`;
+    const orderDataToStore = {
+      userId: order.userId,
+      orderId: order._id,
+      products: order.products.map((product: Product) => ({
+        productId: product._id,
+        quantity: product.quantity,
+        name: product.name || 'Unknown Product',
+        category: product.category || 'Unknown',
+        price: product.price || 0,
+      })),
+      date: new Date().toISOString(),
+    };
+
+    await this.redisClient.hSet(orderKey, {
+      userId: orderDataToStore.userId,
+      orderId: orderDataToStore.orderId,
+      products: JSON.stringify(orderDataToStore.products),
+      date: orderDataToStore.date,
+    });
+  }
+
+  // Update the user's purchase history in Redis
+  private async updateUserPurchaseHistory(order: Order) {
+    const userPurchaseHistoryKey = `user:${order.userId}:purchaseHistory`;
+    const productsServiceUrl = process.env.PRODUCTS_SERVICE_URL || '';
+
+    for (const product of order.products) {
+      const productDetails = await this.getProductDetails(product, productsServiceUrl);
+      const purchaseRecord = {
+        productId: product._id,
+        category: productDetails.category,
+        quantity: product.quantity,
+        price: productDetails.price,
+        name: productDetails.name,
         date: new Date().toISOString(),
       };
 
-      await this.redisClient.hSet(orderKey, {
-        userId: orderDataToStore.userId,
-        orderId: orderDataToStore.orderId,
-        products: JSON.stringify(orderDataToStore.products),
-        date: orderDataToStore.date,
-      });
-    } catch (error) {
-      console.error(`Error updating order ${order._id}:`, error);
+      await this.redisClient.rPush(userPurchaseHistoryKey, JSON.stringify(purchaseRecord));
     }
   }
 
-  private async updateUserPurchaseHistory(order: Order) {
+  // Fetch product details from the Products service
+  private async getProductDetails(product: Product, productsServiceUrl: string) {
+    if (product.category && product.price && product.name) {
+      return {
+        category: product.category,
+        price: product.price,
+        name: product.name,
+      };
+    }
+
     try {
-      const userKey = `user:${order.userId}:purchaseHistory`;
-
-      for (const product of order.products) {
-        let { category, price, name } = product;
-
-        if (!category || !price || !name) {
-          try {
-            const productServiceUrl = process.env.PRODUCTS_SERVICE_URL || '';
-            const response = await axios.get<ProductResponse>(
-              `${productServiceUrl}/id/${product._id}`
-            );
-            const productData = response.data.data.product;
-            category = productData.category;
-            price = productData.price;
-            name = productData.name;
-          } catch {
-            category = 'Unknown';
-            price = 0;
-            name = `Product ${product._id}`;
-          }
-        }
-
-        const purchaseRecord = {
-          productId: product._id,
-          category,
-          quantity: product.quantity,
-          price,
-          name,
-          date: new Date().toISOString(),
-        };
-
-        await this.redisClient.rPush(userKey, JSON.stringify(purchaseRecord));
-      }
-    } catch (error) {
-      console.error(`Error updating purchase history for user ${order.userId}:`, error);
+      const response = await axios.get(`${productsServiceUrl}/id/${product._id}`);
+      const productData = response.data.data.product;
+      return {
+        category: productData.category,
+        price: productData.price,
+        name: productData.name,
+      };
+    } catch (err) {
+      return {
+        category: 'Unknown',
+        price: 0,
+        name: `Product ${product._id}`,
+      };
     }
   }
 }

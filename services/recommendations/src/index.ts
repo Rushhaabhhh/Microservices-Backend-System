@@ -1,77 +1,127 @@
 import express from 'express';
-import { RecommendationService } from './scheduler';
 import client from 'prom-client';
+import { RecommendationService } from './scheduler';
+import { producer } from './kafka';
 import dotenv from 'dotenv';
-import { producer } from './kafka';  // Import Kafka producer
 
 dotenv.config();
 
-const app = express();
-app.use(express.json());
+// Create a Registry and configure default labels
+const register = new client.Registry();
+register.setDefaultLabels({
+  app: 'recommendation-service'
+});
 
-// Initialize RecommendationService
+// Define service metrics
+const metrics = {
+  orderProcessingDuration: new client.Histogram({
+    name: 'order_processing_duration_seconds',
+    help: 'Duration of order processing in seconds',
+    buckets: [1, 2, 5, 10, 20, 30, 60]
+  }),
+  
+  recommendationsGenerated: new client.Counter({
+    name: 'recommendations_generated_total',
+    help: 'Total number of recommendations generated'
+  }),
+
+  processingErrors: new client.Counter({
+    name: 'processing_errors_total',
+    help: 'Total number of processing errors',
+    labelNames: ['error_type']
+  }),
+
+  redisConnectionStatus: new client.Gauge({
+    name: 'redis_connection_status',
+    help: 'Status of Redis connection (1 for connected, 0 for disconnected)'
+  }),
+
+  kafkaConnectionStatus: new client.Gauge({
+    name: 'kafka_connection_status',
+    help: 'Status of Kafka connection (1 for connected, 0 for disconnected)'
+  })
+};
+
+// Register all metrics
+Object.values(metrics).forEach(metric => register.registerMetric(metric));
+
+client.collectDefaultMetrics({ register });
+
+
+// Initialize Express app and recommendation service
+const app = express();
 const recommendationService = new RecommendationService();
 
-// Start Kafka Producer
-async function startKafkaProducer() {
-  try {
-    await producer.connect();
-    console.log('Kafka Producer connected successfully');
-  } catch (error) {
-    console.error('Failed to connect Kafka Producer:', error);
-    process.exit(1); // Exit if Kafka fails
-  }
-}
-
-// Start RecommendationService & Kafka Producer
-Promise.all([recommendationService.start(), startKafkaProducer()])
-  .then(() => {
-    console.log('Recommendation Service & Kafka Producer started');
-  })
-  .catch((error) => {
-    console.error('Error initializing services:', error);
-    process.exit(1);
-  });
-
+app.use(express.json());
 // Metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {
-    res.set('Content-Type', client.register.contentType);
-    res.end(await client.register.metrics());
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
   } catch (error) {
     res.status(500).send('Error collecting metrics');
   }
 });
 
-// Error handling middleware
+
+// Global error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', err);
+  metrics.processingErrors.inc({ error_type: 'unhandled' });
   res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
-// Graceful Shutdown
-process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
+// Service startup sequence
+async function startServices() {
+  try {
+    await producer.connect();
+    metrics.kafkaConnectionStatus.set(1);
+    console.log('Kafka Producer connected successfully');
+
+    // Start recommendation service
+    await recommendationService.start();
+    metrics.redisConnectionStatus.set(1);
+    console.log('Recommendation Service started successfully');
+
+    // Start HTTP server
+    const PORT = process.env.PORT || '';
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start services:', error);
+    metrics.processingErrors.inc({ error_type: 'startup' });
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown handler
+async function shutdownGracefully() {
+  console.log('Initiating graceful shutdown...');
   try {
     await recommendationService.stop();
+    metrics.redisConnectionStatus.set(0);
+    
     await producer.disconnect();
-    console.log('Shutdown complete');
+    metrics.kafkaConnectionStatus.set(0);
+    
+    console.log('All services stopped successfully');
     process.exit(0);
   } catch (error) {
     console.error('Error during shutdown:', error);
+    metrics.processingErrors.inc({ error_type: 'shutdown' });
     process.exit(1);
   }
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Recommendation Service server running on port ${PORT}`);
-  });
 }
 
-export default app;
+process.on('SIGTERM', shutdownGracefully);
+process.on('SIGINT', shutdownGracefully);
+
+if (require.main === module) {
+  startServices();
+}
+
+export { app, metrics, register };
