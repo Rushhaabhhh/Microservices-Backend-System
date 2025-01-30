@@ -90,7 +90,7 @@ export function initializePromotionalEvents(producer: Producer, register: Regist
   const metrics = initializeMetrics(register);
 
   // Run every hour (0 * * * *)
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     console.log('Starting promotional events generation');
     try {
       await generatePromotionalEvents(producer, metrics);
