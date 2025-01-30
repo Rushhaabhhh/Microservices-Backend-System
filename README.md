@@ -2,9 +2,11 @@
 
 This project is a **scalable, event-driven microservices-based backend** designed to support the complex operations of an e-commerce platform. It consists of multiple independent services, each with its own database, connected asynchronously through **Kafka** and exposing APIs via **GraphQL**. The system is built with a strong focus on **performance, reliability, and scalability**, featuring **Redis caching**, **JWT authentication**, **priority-based notification handling**, and **observability** through monitoring tools like **Prometheus and Grafana**. The containerized architecture ensures seamless deployment and management.
 
+https://www.loom.com/share/14913d88f649421eb5426c14fea0d507
+
 ## Architecture
 
-![alt text](image.png)
+![image](https://github.com/user-attachments/assets/233b314c-e4f9-471e-8e6c-6e82a9bb2ced)
 
 - **Microservices**: Independent services for handling **User**, **Product**, **Order**, **Notification**, and **Recommendation** functionalities.
 - **GraphQL API**: A unified interface enabling efficient and flexible data querying across multiple services.
