@@ -1,8 +1,9 @@
 import express from 'express';
-import client from 'prom-client';
-import { RecommendationService } from './scheduler';
-import { producer } from './kafka';
 import dotenv from 'dotenv';
+import client from 'prom-client';
+
+import { producer } from './kafka';
+import { RecommendationService } from './scheduler';
 
 dotenv.config();
 

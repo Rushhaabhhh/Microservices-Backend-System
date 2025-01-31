@@ -5,16 +5,15 @@ The **Notifications Service** is responsible for processing and delivering vario
 ## Features
 
 ### **Core Functionality**
-- **Automated Notification Scheduling**: Processes and sends notifications at scheduled intervals
-- **User Preference Management**: Adapts notifications based on user opt-in preferences
-- **Priority Handling**: Supports different priority levels for notifications (e.g., standard, high-priority)
-- **Retry & Dead Letter Queue (DLQ)**: Handles failed notifications with retry mechanisms and a dead letter queue for long-term failures
+- **Automated Notification Scheduling** : Processes and sends notifications at scheduled intervals using cron jobs
+- **User Preference Management** : Adapts notifications based on user opt-in preferences
+- **Priority Handling** : Supports different priority levels for notifications (low-priority, high-priority)
+- **Retry & Dead Letter Queue (DLQ)** : Handles failed notifications with retry mechanisms and a dead letter queue for long-term failures
 
 ### **Service Integration**
-- Communicates with **Orders Service**, **Recommendation Service**, and **Users Service** via HTTP
+- Communicates with **Orders Service**, **Recommendation Service**, and **Users Service** via HTTP REST requests
 - **Kafka-based event consumption** for triggering notifications
-- **Redis caching** for managing notification state and reducing redundant sends
-- **Email Service Integration**: Uses SMTP-based email service for delivery
+- **Email Service Integration** : Uses Nodemailer SMTP-based email service for delivery 
 
 ### **Monitoring and Observability**
 - **Prometheus-compatible metrics** exposed at **`http://localhost:9204/metrics`**
@@ -56,13 +55,16 @@ notifications-service/
 │   │    ├── ProductEventProcessor.ts       # Processes product-related events
 │   │    └── RecommendationProcessor.ts     # Processes recommendation events
 │   ├── emailService.ts                     # Email sending logic
-│   ├── scheduler.ts                        # Cron job scheduler for automated notifications
 │   ├── types.ts                            # Type definitions
 │   └── models.ts                           # Database models for notifications
 ├── package.json
 └── Dockerfile 
 ```
+## Workflow
 
+- **`index.js`**: Initializes the service, setting up Kafka consumers and producers.  
+- **`processor/processor.ts`**: Manages Kafka event consumption, prioritizing critical events like user and order events, and connects event processors.  
+- **`processor/{service}EventProcessor.ts`**: Handles service-specific events, delegating email sending to **`emailService.ts`** and routing failed events via **`DeadLetterQueue.ts`**.
 
 ## Running the Notifications Service Locally
 

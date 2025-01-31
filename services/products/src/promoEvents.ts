@@ -1,7 +1,8 @@
 import cron from 'node-cron';
-import { Product } from './models';
 import { Producer } from 'kafkajs';
 import { Registry, Counter, Gauge } from 'prom-client';
+
+import { Product } from './models';
 
 interface PromotionalEvent {
   timestamp: Date;

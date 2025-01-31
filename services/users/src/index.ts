@@ -3,7 +3,6 @@ import { config } from 'dotenv';
 import mongoose from 'mongoose';
 import client from 'prom-client';
 
-
 import app from './app';
 import { producer } from "./kafka";
 

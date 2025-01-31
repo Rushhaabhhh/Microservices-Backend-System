@@ -1,9 +1,10 @@
 import axios from "axios";
-import { Notification, NotificationType, NotificationPriority } from "../models";
-import { sendEmail } from "../emailService";
-import { DeadLetterQueueHandler } from "./DeadLetterQueue";
 import cron from "node-cron";
+
+import { sendEmail } from "../emailService";
 import { NotificationDoc, User } from "./types";
+import { DeadLetterQueueHandler } from "./DeadLetterQueue";
+import { Notification, NotificationType, NotificationPriority } from "../models";
 
 
 export class RecommendationEventProcessor {

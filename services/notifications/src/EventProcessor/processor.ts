@@ -1,10 +1,10 @@
-// notif/processor.ts
 import { Consumer, Kafka } from "kafkajs";
+
 import { consumer, producer } from "../kafka";
 import { DeadLetterQueueHandler } from "./DeadLetterQueue";
+import { ProductEventProcessor } from "./ProductEventProcessor";
 import { UserUpdateEventProcessor } from "./UserEventProcessor";
 import { OrderUpdateEventProcessor } from "./OrderEventProcessor";
-import { ProductEventProcessor } from "./ProductEventProcessor";
 import { RecommendationEventProcessor } from "./RecommendationEventProcessor";
 
 export class NotificationProcessorService {

@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
-import { createClient, RedisClientType } from 'redis';
 import cron from 'node-cron';
+import { createClient, RedisClientType } from 'redis';
+
 import { App } from './app';
 
 dotenv.config();

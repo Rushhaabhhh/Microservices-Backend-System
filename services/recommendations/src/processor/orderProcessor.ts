@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { RedisClientType } from 'redis';
+
 import { Order, Product } from '../types';
 
 export class OrderProcessor {

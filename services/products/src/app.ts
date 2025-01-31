@@ -1,5 +1,6 @@
-import express from 'express';
 import morgan from 'morgan';
+import express from 'express';
+
 import { Product } from './models';
 import { producer } from './kafka';
 

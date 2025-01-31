@@ -1,7 +1,8 @@
-import { axios } from "../library/http";
 import Axios from "axios";
-import { Context } from "../types";
 import { verify } from "jsonwebtoken";
+
+import { Context } from "../types";
+import { axios } from "../library/http";
 
 const client = Axios.create({
   ...axios.defaults,

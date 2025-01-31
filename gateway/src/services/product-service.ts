@@ -1,8 +1,9 @@
-import { axios } from "../library/http";
 import Axios from "axios";
-import { cacheClient } from "../library/redis";
-import { Context } from "../types";
 import { verify } from "jsonwebtoken";
+
+import { Context } from "../types";
+import { axios } from "../library/http";
+import { cacheClient } from "../library/redis";
 
 
 const client = Axios.create({

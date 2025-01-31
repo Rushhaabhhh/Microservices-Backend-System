@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { RedisClientType } from 'redis';
+
+import { OrdersResponse } from './types';
 import { OrderProcessor } from './processor/orderProcessor';
 import { RecommendationProcessor } from './processor/recommendationProcessor';
-import { OrdersResponse } from './types';
 
 export class App {
   private orderProcessor: OrderProcessor;

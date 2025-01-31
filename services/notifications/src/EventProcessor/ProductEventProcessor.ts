@@ -1,9 +1,10 @@
 import axios from "axios";
 import cron from "node-cron";
-import { Notification, NotificationType, NotificationPriority } from "../models";
+
 import { sendEmail } from "../emailService";
-import { DeadLetterQueueHandler } from "./DeadLetterQueue";
 import { NotificationPayload, User } from "./types";
+import { DeadLetterQueueHandler } from "./DeadLetterQueue";
+import { Notification, NotificationType, NotificationPriority } from "../models";
 
 export class ProductEventProcessor {
   private deadLetterQueueHandler: DeadLetterQueueHandler;

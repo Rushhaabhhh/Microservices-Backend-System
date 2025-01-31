@@ -1,4 +1,5 @@
 import { Kafka, logLevel } from "kafkajs";
+
 const kafka = new Kafka({
   clientId: "users",
   brokers: (process.env["KAFKA_BROKERS"] || "").split(" "),

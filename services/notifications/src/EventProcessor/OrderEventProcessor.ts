@@ -1,7 +1,8 @@
 import axios from "axios";
-import { Notification, NotificationType, NotificationPriority } from "../models";
+
 import { sendEmail } from "../emailService";
 import { DeadLetterQueueHandler } from "./DeadLetterQueue";
+import { Notification, NotificationType, NotificationPriority } from "../models";
 
 export class OrderUpdateEventProcessor {
   private deadLetterQueueHandler: DeadLetterQueueHandler;

@@ -1,4 +1,5 @@
 import { Kafka, logLevel } from "kafkajs";
+
 const kafka = new Kafka({
   clientId: "graphql-gateway",
   brokers: (process.env["KAFKA_BROKERS"] || "").split(" "),

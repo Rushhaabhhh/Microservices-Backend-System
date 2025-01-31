@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { RedisClientType } from 'redis';
+
 import { producer } from '../kafka';
 import { Product, ProductsByCategoryResponse } from '../types';
 
