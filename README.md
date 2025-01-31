@@ -6,7 +6,8 @@ https://www.loom.com/share/14913d88f649421eb5426c14fea0d507
 
 ## Architecture
 
-![image](https://github.com/user-attachments/assets/233b314c-e4f9-471e-8e6c-6e82a9bb2ced)
+![image](https://github.com/user-attachments/assets/ef19a193-48dc-4671-81e4-6059af439da3)
+
 
 - **Microservices**: Independent services for handling **User**, **Product**, **Order**, **Notification**, and **Recommendation** functionalities.
 - **GraphQL API**: A unified interface enabling efficient and flexible data querying across multiple services.
