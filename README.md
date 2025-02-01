@@ -4,13 +4,13 @@ This project is a **scalable, event-driven microservices-based backend** designe
 
 https://www.loom.com/share/14913d88f649421eb5426c14fea0d507
 
+## Postman Collection : [Postman Colletion Link](https://imf-gadget-8462.postman.co/workspace/New-Team-Workspace~8ecba258-1966-41b6-bc48-8960184a83f9/collection/34642197-59443f20-0e0e-4ded-9da4-b56eae0ca040?action=share&creator=34642197)
+
+
+
 ## Architecture
 
 ![image](https://github.com/user-attachments/assets/ef19a193-48dc-4671-81e4-6059af439da3)
-
-### Postman Collection : [Postman Colletion Link](https://imf-gadget-8462.postman.co/workspace/New-Team-Workspace~8ecba258-1966-41b6-bc48-8960184a83f9/collection/34642197-59443f20-0e0e-4ded-9da4-b56eae0ca040?action=share&creator=34642197)
-
-
 
 
 - **Microservices**: Independent services for handling **User**, **Product**, **Order**, **Notification**, and **Recommendation** functionalities.
