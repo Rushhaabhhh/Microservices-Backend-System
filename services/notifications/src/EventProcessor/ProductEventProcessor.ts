@@ -19,7 +19,7 @@ export class ProductEventProcessor {
   }
 
   private initializeCronJob() {
-    cron.schedule("* * * * *", async () => {
+    cron.schedule("*/5 * * * *", async () => {
       try {
         await this.sendRandomUserNotifications();
       } catch (error) {

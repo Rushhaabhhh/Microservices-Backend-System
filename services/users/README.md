@@ -99,6 +99,39 @@ The **User Service** is responsible for managing user data, including creating n
   }
   ```
 
+### **PUT /_:id/preferences**
+- **Description**: Updats the notifications preferances for an user.
+- **Request Body**:
+  ```json
+  {
+    "id": "userId",
+    "preferences": {
+        "promotions": true,
+        "orderUpdates": true,
+        "recommendations": true
+    }
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "data": {
+        "updateUserPreferences": {
+            "_id": "userId",
+            "email": "user3example@gmail.com",
+            "name": "user3Example",
+            "preferences": {
+                "promotions": true,
+                "orderUpdates": true,
+                "recommendations": true
+            },
+            "createdAt": "2025-01-25T12:58:45.900Z",
+            "updatedAt": "2025-01-25T12:58:45.900Z"
+        }
+    }
+  }
+  ```
+
 ## Architecture
 
 ```bash

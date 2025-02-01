@@ -21,7 +21,7 @@ export class RecommendationEventProcessor {
   }
 
   private initializeCronJob() {
-    this.cronJob = cron.schedule("* * * * *", async () => {
+    this.cronJob = cron.schedule("*/5 * * * *", async () => {
       const pendingNotifications = await Notification.find({
         type: NotificationType.RECOMMENDATION,
         emailSent: false,

@@ -55,14 +55,18 @@ const UserService = {
       const response = await client.post("/login", input);
   
       // Check if 'data' exists in the response
-      if (!response.data || !response.data.result) {
-        throw new Error("Unexpected response structure: Missing 'data.result'");
+      if (!response.data?.result?.access_token || !response.data?.result?.user) {
+        throw new Error("Invalid login response");
       }
-  
+      
       return response.data.result;
     } catch (error) {
-      console.error("Error logging in:", (error as any));
-      throw new Error((error as any).response?.data?.error || "Login failed");
+      console.error("Error logging in:", error);
+      if (error instanceof Axios.AxiosError && error.response) {
+        throw new Error(error.response.data?.error || "Login failed");
+      } else {
+        throw new Error("Login failed");
+      }
     }
   },
 
@@ -74,17 +78,6 @@ const UserService = {
     } catch (error) {
       console.error(`Error updating preferences for user ID ${id}:`, (error as any).message);
       throw new Error("Unable to update preferences.");
-    }
-  },
-
-  // Delete a user
-  async delete({ id }: { id: string }) {
-    try {
-      const response = await client.delete(`/${id}`);
-      return response.data.result;
-    } catch (error) {
-      console.error(`Error deleting user with ID ${id}:`, (error as any).message);
-      throw new Error("Unable to delete user.");
     }
   },
 } as const;

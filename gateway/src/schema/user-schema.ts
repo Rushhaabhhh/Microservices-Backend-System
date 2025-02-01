@@ -59,8 +59,7 @@ const userTypeDefs = buildSchema(`
         createUser(input: CreateUserInput!): CreateUserResult!
         loginUser(input: LoginInput!): LoginResult!
         updateUserPreferences(id: ID!, preferences: UpdateUserPreferencesInput!): User!
-        deleteUser(_id: ID!): User!
     }
 `);
 
-export { userTypeDefs};
+export { userTypeDefs };

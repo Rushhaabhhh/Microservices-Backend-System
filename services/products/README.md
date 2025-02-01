@@ -96,9 +96,6 @@ The **Product Service** is responsible for managing product data, including addi
   }
   ```
 
-
-  ```
-
 ## Architecture
 
 ```bash

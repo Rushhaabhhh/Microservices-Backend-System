@@ -40,7 +40,7 @@ export class RecommendationService {
   private initializeCronJob() {
     // Run every day at midnight UTC
     this.cronJob = cron.schedule(
-      '* * * * *',
+      '*/5 * * * *',
       async () => {
         console.log('Starting daily order processing:', new Date().toISOString());
         try {

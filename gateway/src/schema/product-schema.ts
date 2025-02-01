@@ -1,7 +1,6 @@
 import { buildSchema } from "graphql";
 
 const productTypeDefs = buildSchema(`
-
   type Product {
     _id: ID!
     name: String!
@@ -24,7 +23,6 @@ const productTypeDefs = buildSchema(`
 
   type Mutation {
     createProduct(input: CreateProductInput): Product
-    deleteProduct(id: ID!): Product
   }
 `);
 

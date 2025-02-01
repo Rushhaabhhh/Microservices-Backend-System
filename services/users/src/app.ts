@@ -67,7 +67,39 @@ const validateRequestParams = (schema: z.ZodSchema) => (
   }
 };
 
-// User Registration Endpoint
+// Get All Users
+app.get('/', async (req, res): Promise<void> => {
+  try {
+    const users = await User.find({});
+    res.json({ result: users });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+// Get User by ID
+app.get(
+  '/:id',
+  validateRequestParams(userIdParamSchema),
+  async (req, res): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const user = await User.findById(id);
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      res.json({ result: user });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
+);
+// Create User
 app.post(
   '/',
   validateRequestBody(userRegistrationSchema),
@@ -115,7 +147,7 @@ app.post(
   }
 );
 
-// User Login Endpoint
+// Login User
 app.post(
   '/login',
   validateRequestBody(userLoginSchema),
@@ -126,52 +158,46 @@ app.post(
       // Find user by email
       const user = await User.findOne({ email });
       
-      // Check if user exists
       if (!user) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;
       }
 
-      // Compare provided password with stored hashed password
       const isPasswordValid = await bcrypt.compare(password, user.password);
       
-      // Check if password is correct
       if (!isPasswordValid) {
         res.status(401).json({ error: 'Invalid credentials' });
         return;
       }
 
-      // Generate a JWT token
       const token = signJWT(user.id);
 
-      // Publish a user-login event to Kafka
       await producer.send({
         topic: "user-events",
         messages: [
           { 
             value: JSON.stringify({
-              userId: user.id, 
+              userId: user.id,
               email: user.email,
               eventType: 'user-login',
               details: {
-                message: 'User logged in successfully',
                 timestamp: new Date().toISOString(),
-                loginMethod: 'email' 
-              },
-              updateType: 'login',
-              timestamp: new Date().toISOString()
-            }) 
+                loginMethod: 'email'
+              }
+            })
           }
         ],
       });
 
-      // Return the user and access token
       res.json({
         result: {
           user: {
-            id: user.id,
+            _id: user.id,
             name: user.name,
             email: user.email,
+            preferences: user.preferences,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
           },
           access_token: token,
         },
@@ -183,37 +209,32 @@ app.post(
   }
 );
 
-// Get User by ID
-app.get(
-  '/:id',
+// Update user preferences
+app.put(
+  '/:id/preferences',
   validateRequestParams(userIdParamSchema),
   async (req, res): Promise<void> => {
     try {
       const { id } = req.params;
-      const user = await User.findById(id);
+      const preferences = req.body;
 
-      if (!user) {
+      const updatedUser = await User.findByIdAndUpdate(
+        id,
+        { $set: { preferences } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
         res.status(404).json({ error: 'User not found' });
         return;
       }
 
-      res.json({ result: user });
+      res.json({ result: updatedUser });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
       res.status(500).json({ error: errorMessage });
     }
   }
 );
-
-// Get All Users
-app.get('/', async (req, res): Promise<void> => {
-  try {
-    const users = await User.find({});
-    res.json({ result: users });
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
-    res.status(500).json({ error: errorMessage });
-  }
-});
 
 export default app;
