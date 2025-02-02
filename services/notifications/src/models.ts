@@ -5,7 +5,8 @@ export enum NotificationType {
   PROMOTION = 'promotion',
   ORDER_UPDATE = 'order_update',
   RECOMMENDATION = 'recommendation',
-  USER_UPDATE = 'user_update'
+  USER_UPDATE = 'user_update',
+  EMAIL = "EMAIL"
 }
 
 // Enum for Notification Priorities
