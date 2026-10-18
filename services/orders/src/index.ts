@@ -8,7 +8,7 @@ import { consumer, producer } from "./kafka";
 
 
 config();
-const METRICS_PORT = process.env.METRICS_PORT ;
+const METRICS_PORT = parseInt(process.env.METRICS_PORT || '9203', 10);
 
 const register = new client.Registry();
 
@@ -50,6 +50,6 @@ main()
   });
 
 // Start the metrics server
-metricsApp.listen(METRICS_PORT, () => {
+metricsApp.listen(METRICS_PORT, '0.0.0.0', () => {
   console.log(`Metrics available at http://localhost:${METRICS_PORT}/metrics`);
 });

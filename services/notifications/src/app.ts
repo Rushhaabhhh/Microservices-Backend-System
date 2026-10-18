@@ -6,6 +6,14 @@ import { Notification, NotificationPriority, NotificationType } from "./models";
 
 const app = express();
 
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'notifications' });
+});
+
+app.get('/readyz', (_req, res) => {
+  res.status(200).json({ status: 'ready', service: 'notifications' });
+});
+
 // Middleware
 app.use(express.json());
 app.use(morgan("common"));
