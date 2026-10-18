@@ -89,6 +89,17 @@ https://www.loom.com/share/14913d88f649421eb5426c14fea0d507
 ## Running Locally
 The entire system can be run locally with a single command using Docker Compose.
 ```bash
-docker-compose up --build
+cp .env.example .env
+# Edit .env with local-only values, then run:
+docker compose up --build
 ```
 - To run a specific service, navigate to its directory and follow the steps to install dependencies and start it individually.
+
+## DevOps operations
+
+- CI runs `typecheck`, production builds, and Trivy image scans for every pull request.
+- Merges to `main` publish immutable commit-SHA image tags to GitHub Container Registry.
+- Kubernetes resources are in `k8s/`; use `kubectl apply -k k8s/` after setting real local secret values.
+- The gateway health endpoint is `GET /healthz`; the GraphQL endpoint is `POST /graphql`.
+- Prometheus configuration is in `prometheus.yml`. Metrics are exposed on the service metrics ports listed in the runbook.
+- The operational procedure, rollback steps, baseline details, and evidence checklist are in [docs/DEVOPS_RUNBOOK.md](docs/DEVOPS_RUNBOOK.md).

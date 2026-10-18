@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory:
+          - gateway
+          - services/users
+          - services/orders
+          - services/products
+          - services/notifications
+          - services/recommendations
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ matrix.directory }}/yarn.lock
+      - run: yarn install --frozen-lockfile
+      - run: yarn typecheck
+      - run: yarn build
+
+  container-scan:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - gateway
+          - users
+          - orders
+          - products
+          - notifications
+          - recommendations
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: trivy-${{ runner.os }}-
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service == 'gateway' && './gateway' || format('./services/{0}', matrix.service) }}
+          file: ${{ matrix.service == 'gateway' && './gateway/Dockerfile' || format('./services/{0}/Dockerfile', matrix.service) }}
+          load: true
+          push: false
+          tags: local/${{ matrix.service }}:${{ github.sha }}
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: local/${{ matrix.service }}:${{ github.sha }}
+          format: json
+          output: trivy-${{ matrix.service }}.json
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          timeout: 10m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}-${{ github.sha }}
+          path: trivy-${{ matrix.service }}.json
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [validate, container-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: gateway
+            context: ./gateway
+          - name: users
+            context: ./services/users
+          - name: orders
+            context: ./services/orders
+          - name: products
+            context: ./services/products
+          - name: notifications
+            context: ./services/notifications
+          - name: recommendations
+            context: ./services/recommendations
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ github.sha }}

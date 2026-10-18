@@ -11,7 +11,7 @@ import { initializePromotionalEvents } from './promoEvents';
 
 config();
 
-const METRICS_PORT = process.env.METRICS_PORT;
+const METRICS_PORT = parseInt(process.env.METRICS_PORT || '9202', 10);
 
 // Prometheus Registry
 const register = new client.Registry();
@@ -82,7 +82,7 @@ const main = async () => {
     });
 
     // Start the metrics server
-    metricsApp.listen(METRICS_PORT, () => {
+    metricsApp.listen(METRICS_PORT, '0.0.0.0', () => {
       console.log(`Metrics available at http://localhost:${METRICS_PORT}/metrics`);
     });
 

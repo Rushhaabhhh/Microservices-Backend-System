@@ -8,6 +8,14 @@ import { producer } from "./kafka";
 
 const app = express();
 
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'orders' });
+});
+
+app.get('/readyz', (_req, res) => {
+  res.status(200).json({ status: 'ready', service: 'orders' });
+});
+
 app.use(express.json());
 app.use(morgan("common"));
 
