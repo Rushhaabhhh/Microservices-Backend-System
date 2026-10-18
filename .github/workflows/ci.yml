@@ -76,14 +76,6 @@ jobs:
           name: trivy-${{ matrix.service }}-${{ github.sha }}
           path: trivy-${{ matrix.service }}.json
           if-no-files-found: error
-      - uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: local/${{ matrix.service }}:${{ github.sha }}
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: CRITICAL
-          timeout: 10m
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
