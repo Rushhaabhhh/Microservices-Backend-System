@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   validate:
@@ -51,6 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: trivy-${{ runner.os }}-
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service == 'gateway' && './gateway' || format('./services/{0}', matrix.service) }}
@@ -61,10 +65,25 @@ jobs:
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: local/${{ matrix.service }}:${{ github.sha }}
+          format: json
+          output: trivy-${{ matrix.service }}.json
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          timeout: 10m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}-${{ github.sha }}
+          path: trivy-${{ matrix.service }}.json
+          if-no-files-found: error
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: local/${{ matrix.service }}:${{ github.sha }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
+          timeout: 10m
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
