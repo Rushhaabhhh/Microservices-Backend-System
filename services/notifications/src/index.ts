@@ -17,9 +17,6 @@ const main = async () => {
       "MONGO_URL",
       "KAFKA_BROKERS",
       "USERS_SERVICE_URL",
-      "SMTP_HOST",
-      "SMTP_USER",
-      "SMTP_PASS",
     ];
 
     requiredEnvs.forEach((env) => {

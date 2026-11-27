@@ -1,0 +1,179 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: users } }
+  template:
+    metadata: { labels: { app: users } }
+    spec:
+      containers:
+        - name: users
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/users:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: API_SECRET, valueFrom: { secretKeyRef: { name: service-secrets, key: API_SECRET } } }
+            - { name: MONGO_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_USERNAME } } }
+            - { name: MONGO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_PASSWORD } } }
+            - { name: MONGO_URL, valueFrom: { secretKeyRef: { name: service-secrets, key: USERS_MONGO_URL } } }
+            - { name: USERS_SERVICE_PORT, value: "8000" }
+            - { name: METRICS_PORT, value: "9201" }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 20 }
+          resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 300m, memory: 384Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: users-service }
+spec:
+  selector: { app: users }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: products }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: products } }
+  template:
+    metadata: { labels: { app: products } }
+    spec:
+      containers:
+        - name: products
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/products:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: MONGO_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_USERNAME } } }
+            - { name: MONGO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_PASSWORD } } }
+            - { name: MONGO_URL, valueFrom: { secretKeyRef: { name: service-secrets, key: PRODUCTS_MONGO_URL } } }
+            - { name: PRODUCTS_SERVICE_PORT, value: "8000" }
+            - { name: METRICS_PORT, value: "9202" }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 20 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: products-service }
+spec:
+  selector: { app: products }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: orders }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: orders } }
+  template:
+    metadata: { labels: { app: orders } }
+    spec:
+      containers:
+        - name: orders
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/orders:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: MONGO_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_USERNAME } } }
+            - { name: MONGO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_PASSWORD } } }
+            - { name: MONGO_URL, valueFrom: { secretKeyRef: { name: service-secrets, key: ORDERS_MONGO_URL } } }
+            - { name: ORDERS_SERVICE_PORT, value: "8000" }
+            - { name: METRICS_PORT, value: "9203" }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 20 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: orders-service }
+spec:
+  selector: { app: orders }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: recommendations }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: recommendations } }
+  template:
+    metadata: { labels: { app: recommendations } }
+    spec:
+      containers:
+        - name: recommendations
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/recommendations:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: PORT, value: "8000" }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 15 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: recommendations-service }
+spec:
+  selector: { app: recommendations }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: notifications }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: notifications } }
+  template:
+    metadata: { labels: { app: notifications } }
+    spec:
+      containers:
+        - name: notifications
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/notifications:latest
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: MONGO_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_USERNAME } } }
+            - { name: MONGO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: service-secrets, key: MONGO_ROOT_PASSWORD } } }
+            - { name: MONGO_URL, valueFrom: { secretKeyRef: { name: service-secrets, key: NOTIFICATIONS_MONGO_URL } } }
+            - { name: NOTIFICATIONS_SERVICE_PORT, value: "8000" }
+            - { name: SMTP_USER, valueFrom: { secretKeyRef: { name: service-secrets, key: SMTP_USER } } }
+            - { name: SMTP_PASS, valueFrom: { secretKeyRef: { name: service-secrets, key: SMTP_PASS } } }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 15 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: notifications-service }
+spec:
+  selector: { app: notifications }
+  ports: [{ name: http, port: 8000, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api-gateway }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api-gateway } }
+  template:
+    metadata: { labels: { app: api-gateway } }
+    spec:
+      containers:
+        - name: api-gateway
+          image: ghcr.io/rushhaabhhh/microservices-backend-system/gateway:latest
+          ports: [{ name: http, containerPort: 4000 }]
+          envFrom: [{ configMapRef: { name: service-config } }]
+          env:
+            - { name: PORT, value: "4000" }
+            - { name: API_SECRET, valueFrom: { secretKeyRef: { name: service-secrets, key: API_SECRET } } }
+            - { name: METRICS_PORT, value: "9200" }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, initialDelaySeconds: 15 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 30 }
+          resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: 500m, memory: 512Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: api-gateway }
+spec:
+  type: NodePort
+  selector: { app: api-gateway }
+  ports: [{ name: http, port: 4000, targetPort: http, nodePort: 30400 }]

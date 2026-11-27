@@ -2,16 +2,21 @@ import axios from "axios";
 import nodemailer from "nodemailer";
 import { NotificationType } from "./models";
 
-// Configure Nodemailer
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587", 10),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const smtpConfigured = Boolean(
+  process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+);
+
+const transporter = smtpConfigured
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || "587", 10),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    })
+  : nodemailer.createTransport({ jsonTransport: true });
 
 /**
  * Generates a personalized email template with dynamic content.
@@ -106,10 +111,7 @@ const formatEmailContent = (type: NotificationType, content: any, userName: stri
   }
 };
 
-const senderEmail = process.env.SENDER_EMAIL;
-if (!senderEmail) {
-  throw new Error("SENDER_EMAIL is not defined in environment variables");
-}
+const senderEmail = process.env.SENDER_EMAIL || "development@localhost";
 
 /**
  * Sends a comprehensive email notification with personalized content.

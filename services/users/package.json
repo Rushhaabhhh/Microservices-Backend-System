@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
     "start": "ts-node src/index.ts"
   },
   "keywords": [],

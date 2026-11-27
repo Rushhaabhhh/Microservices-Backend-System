@@ -54,6 +54,12 @@ const app = express();
 const recommendationService = new RecommendationService();
 
 app.use(express.json());
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'recommendations' });
+});
+app.get('/readyz', (_req, res) => {
+  res.status(200).json({ status: 'ready', service: 'recommendations' });
+});
 // Metrics endpoint
 app.get('/metrics', async (req, res) => {
   try {
@@ -100,7 +106,7 @@ async function startServices() {
     console.log('Recommendation Service started successfully');
 
     // Start HTTP server
-    const PORT = process.env.PORT || '';
+    const PORT = parseInt(process.env.PORT || '8000', 10);
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

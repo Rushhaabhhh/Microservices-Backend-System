@@ -9,6 +9,9 @@ RUN yarn
 
 COPY . .
 
+RUN chown -R node:node /usr/src/app
+USER node
+
 
 ENV PORT=8000
 

@@ -6,10 +6,10 @@ services:
     networks:
       - backend
   users-db:
-    image: mongo
+    image: mongo:7.0
     environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: users-service
     ports:
       - 27017:27017
@@ -17,10 +17,10 @@ services:
       - backend
 
   orders-db:
-    image: mongo
+    image: mongo:7.0
     environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: orders-service
     ports:
       - 27018:27017
@@ -28,10 +28,10 @@ services:
       - backend
 
   products-db:
-    image: mongo
+    image: mongo:7.0
     environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: products-service
     ports:
       - 27019:27017
@@ -39,10 +39,10 @@ services:
       - backend
 
   notifications-db:
-    image: mongo
+    image: mongo:7.0
     environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: notifications-service
     ports:
       - 27020:27017
@@ -76,9 +76,10 @@ services:
       context: ./services/users
       dockerfile: Dockerfile
     environment:
-      API_SECRET: secret
+      API_SECRET: ${API_SECRET}
       KAFKA_BROKERS: kafka:9092
-      MONGO_URI: mongodb://username:password@users-db:27017/users-service?authSource=admin
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@users-db:27017/users-service?authSource=admin
+      METRICS_PORT: 9201
       USERS_SERVICE_PORT: "8000"
     ports:
       - "8001:8000"
@@ -98,7 +99,8 @@ services:
       ORDERS_SERVICE_PORT: 8000
       USERS_SERVICE_URL: http://users-service:8000
       PRODUCTS_SERVICE_URL: http://products-service:8000
-      MONGO_URI: mongodb://username:password@orders-db:27017/orders-service?authSource=admin
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@orders-db:27017/orders-service?authSource=admin
+      METRICS_PORT: 9203
     ports:
       - 8002:8000
     depends_on:
@@ -114,7 +116,8 @@ services:
     environment:
       PRODUCTS_SERVICE_PORT: 8000
       KAFKA_BROKERS: kafka:9092
-      MONGO_URI: mongodb://username:password@products-db:27017/products-service?authSource=admin
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@products-db:27017/products-service?authSource=admin
+      METRICS_PORT: 9202
     ports:
       - 8003:8000
     depends_on:
@@ -130,13 +133,14 @@ services:
     environment:
       NOTIFICATIONS_SERVICE_PORT: 8000
       KAFKA_BROKERS: kafka:9092
-      MONGO_URI: mongodb://username:password@notifications-db:27017/notifications-service?authSource=admin
-      SMTP_HOST: 'smtp.gmail.com'
-      SMTP_PORT: '587'
-      SMTP_SECURE: 'false' 
-      SMTP_USER: 'rushabhkhatri748@gmail.com'
-      SMTP_PASS: 'bxsd qvhc nxeb mrpm'
-      SENDER_EMAIL: 'rushabhkhatri748@gmail.com'
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@notifications-db:27017/notifications-service?authSource=admin
+      METRICS_PORT: 9204
+      SMTP_HOST: ${SMTP_HOST:-smtp.example.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SENDER_EMAIL: ${SENDER_EMAIL:-}
       USERS_SERVICE_URL: 'http://users-service:8000'
 
     ports:
@@ -177,13 +181,14 @@ services:
       context: ./gateway
       dockerfile: Dockerfile
     environment:
-      API_SECRET: secret
+      API_SECRET: ${API_SECRET}
       USERS_SERVICE_URL: http://users-service:8000
       ORDERS_SERVICE_URL: http://orders-service:8000
       PRODUCTS_SERVICE_URL: http://products-service:8000
       REDIS_URL: redis://cache-db:6379
       KAFKA_BROKERS: kafka:9092
       PORT: "4000"
+      METRICS_PORT: 9200
     ports:
       - "4000:4000"
     depends_on:
@@ -203,13 +208,15 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - backend
 
   grafana:
     image: grafana/grafana
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=password
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:
       - grafana-storage:/var/lib/grafana
 
